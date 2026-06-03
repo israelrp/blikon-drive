@@ -110,6 +110,21 @@ export interface DriveFolder {
   fileCount: number;
 }
 
+export async function deleteFolder(id: string, blikonId?: string): Promise<void> {
+  await fetch(`${API}/api/folders/${encodeURIComponent(id)}`, {
+    method: "DELETE",
+    headers: blikonHeader(blikonId),
+  });
+}
+
+export async function batchDeleteFolders(ids: string[], blikonId?: string): Promise<void> {
+  await fetch(`${API}/api/folders/batch-delete`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...blikonHeader(blikonId) },
+    body: JSON.stringify({ ids }),
+  });
+}
+
 export async function ensureFolder(path: string, blikonId?: string, parentId?: string): Promise<DriveFolder> {
   const res = await fetch(`${API}/api/folders/ensure`, {
     method: "POST",

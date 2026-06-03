@@ -105,7 +105,62 @@ public class FoldersController(DriveDbContext db) : ControllerBase
         if (folder is null) return NotFound();
         return Ok(folder);
     }
+
+    [HttpDelete("{*id}")]
+    public async Task<IActionResult> Delete(string id)
+    {
+        var allIds = new List<string>();
+        await CollectDescendants(id, allIds);
+
+        var now   = DateTime.UtcNow;
+        var files = await db.Files
+            .Where(f => allIds.Contains(f.CoreFolderId) && f.DeletedAt == null)
+            .ToListAsync();
+        foreach (var f in files) f.DeletedAt = now;
+
+        var folders = await db.Folders.Where(f => allIds.Contains(f.Id)).ToListAsync();
+        db.Folders.RemoveRange(folders);
+
+        await db.SaveChangesAsync();
+        return Ok(new { deletedFolders = folders.Count, deletedFiles = files.Count });
+    }
+
+    [HttpPost("batch-delete")]
+    public async Task<IActionResult> BatchDelete([FromBody] BatchDeleteFoldersRequest req)
+    {
+        if (req.Ids.Count == 0) return BadRequest();
+
+        var allIds = new List<string>();
+        foreach (var id in req.Ids)
+            await CollectDescendants(id, allIds);
+
+        var distinctIds = allIds.Distinct().ToList();
+        var now         = DateTime.UtcNow;
+
+        var files = await db.Files
+            .Where(f => distinctIds.Contains(f.CoreFolderId) && f.DeletedAt == null)
+            .ToListAsync();
+        foreach (var f in files) f.DeletedAt = now;
+
+        var folders = await db.Folders.Where(f => distinctIds.Contains(f.Id)).ToListAsync();
+        db.Folders.RemoveRange(folders);
+
+        await db.SaveChangesAsync();
+        return Ok(new { deletedFolders = folders.Count, deletedFiles = files.Count });
+    }
+
+    private async Task CollectDescendants(string id, List<string> ids)
+    {
+        ids.Add(id);
+        var childIds = await db.Folders
+            .Where(f => f.ParentId == id)
+            .Select(f => f.Id)
+            .ToListAsync();
+        foreach (var childId in childIds)
+            await CollectDescendants(childId, ids);
+    }
 }
 
 public record EnsureFolderRequest(string Path, string? ParentId = null);
+public record BatchDeleteFoldersRequest(List<string> Ids);
 public record FolderDto(string Id, string Name, string? ParentId, DateTime CreatedAt, int ChildCount, int FileCount);

@@ -7,7 +7,11 @@ import { FileGridItem } from "@/components/FileGridItem";
 import { FileTableView } from "@/components/FileTableView";
 import { FolderCard } from "@/components/FolderCard";
 import { DropZone } from "@/components/DropZone";
-import { getFilesByFolder, getFolderChildren, batchDeleteFiles, DriveFile, DriveFolder } from "@/lib/api";
+import {
+  getFilesByFolder, getFolderChildren,
+  batchDeleteFiles, batchDeleteFolders,
+  DriveFile, DriveFolder,
+} from "@/lib/api";
 import { FolderOpen, ChevronRight, Trash2, X, CheckSquare } from "lucide-react";
 
 interface UserInfo {
@@ -27,11 +31,12 @@ export function FolderClient({
   breadcrumb:        { id: string; name: string }[];
   userInfo?:         UserInfo | null;
 }) {
-  const [files, setFiles] = useState(initialFiles);
+  const [files, setFiles]           = useState(initialFiles);
   const [subfolders, setSubfolders] = useState(initialSubfolders);
-  const [view, setView] = useState<"grid" | "list">("grid");
-  const [selected, setSelected] = useState<Set<string>>(new Set());
-  const [deleting, setDeleting] = useState(false);
+  const [view, setView]             = useState<"grid" | "list">("grid");
+  const [selectedFiles, setSelectedFiles]     = useState<Set<string>>(new Set());
+  const [selectedFolders, setSelectedFolders] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting]     = useState(false);
 
   const refresh = useCallback(async () => {
     const [f, sf] = await Promise.all([
@@ -42,41 +47,52 @@ export function FolderClient({
     setSubfolders(sf);
   }, [folderId, userInfo?.blikonId]);
 
-  // SSE — escucha eventos del servidor para actualizaciones en tiempo real
   useEffect(() => {
     const api = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5086";
     const url = `${api}/api/events/files?coreFolderId=${encodeURIComponent(folderId)}`;
     const source = new EventSource(url);
-
     source.onmessage = () => { refresh(); };
-    source.onerror   = () => { /* reconecta automáticamente */ };
-
     return () => source.close();
   }, [folderId, refresh]);
 
-  function handleSelect(id: string) {
-    setSelected((prev) => {
+  function handleSelectFile(id: string) {
+    setSelectedFiles((prev) => {
       const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function handleSelectFolder(id: string) {
+    setSelectedFolders((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
       return next;
     });
   }
 
   function selectAll() {
-    setSelected(new Set(files.map((f) => f.id)));
+    setSelectedFiles(new Set(files.map((f) => f.id)));
+    setSelectedFolders(new Set(subfolders.map((sf) => sf.id)));
   }
 
   function clearSelection() {
-    setSelected(new Set());
+    setSelectedFiles(new Set());
+    setSelectedFolders(new Set());
   }
 
+  const totalSelected = selectedFiles.size + selectedFolders.size;
+  const hasSelection  = totalSelected > 0;
+
   async function handleBatchDelete() {
-    if (selected.size === 0) return;
+    if (!hasSelection) return;
     setDeleting(true);
     try {
-      await batchDeleteFiles(Array.from(selected), userInfo?.blikonId);
-      setSelected(new Set());
+      await Promise.all([
+        selectedFiles.size   > 0 ? batchDeleteFiles(Array.from(selectedFiles), userInfo?.blikonId)   : Promise.resolve(),
+        selectedFolders.size > 0 ? batchDeleteFolders(Array.from(selectedFolders), userInfo?.blikonId) : Promise.resolve(),
+      ]);
+      clearSelection();
       await refresh();
     } finally {
       setDeleting(false);
@@ -84,7 +100,6 @@ export function FolderClient({
   }
 
   const isEmpty = files.length === 0 && subfolders.length === 0;
-  const hasSelection = selected.size > 0;
 
   return (
     <div className="flex flex-col h-screen bg-[#f6f8fc]">
@@ -113,7 +128,12 @@ export function FolderClient({
             {hasSelection && (
               <div className="flex items-center gap-3 mb-4 px-4 py-2.5 bg-[#e8f0fe] rounded-xl border border-[#1a73e8]/20">
                 <span className="text-sm font-medium text-[#1a73e8]">
-                  {selected.size} seleccionado{selected.size > 1 ? "s" : ""}
+                  {totalSelected} elemento{totalSelected > 1 ? "s" : ""} seleccionado{totalSelected > 1 ? "s" : ""}
+                  {selectedFolders.size > 0 && selectedFiles.size > 0 && (
+                    <span className="font-normal text-xs ml-1 text-[#5f6368]">
+                      ({selectedFolders.size} carpeta{selectedFolders.size > 1 ? "s" : ""}, {selectedFiles.size} archivo{selectedFiles.size > 1 ? "s" : ""})
+                    </span>
+                  )}
                 </span>
                 <div className="flex items-center gap-1 ml-auto">
                   <button
@@ -128,7 +148,7 @@ export function FolderClient({
                     className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-600 bg-white hover:bg-red-50 rounded-full border border-red-200 transition-colors disabled:opacity-50"
                   >
                     <Trash2 size={14} />
-                    {deleting ? "Eliminando..." : `Eliminar ${selected.size}`}
+                    {deleting ? "Eliminando…" : `Eliminar ${totalSelected}`}
                   </button>
                   <button
                     onClick={clearSelection}
@@ -156,13 +176,29 @@ export function FolderClient({
                     {view === "grid" ? (
                       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3">
                         {subfolders.map((sf) => (
-                          <FolderCard key={sf.id} folder={sf} view="grid" />
+                          <FolderCard
+                            key={sf.id}
+                            folder={sf}
+                            view="grid"
+                            selected={selectedFolders.has(sf.id)}
+                            onSelect={handleSelectFolder}
+                            onDeleted={refresh}
+                            blikonId={userInfo?.blikonId}
+                          />
                         ))}
                       </div>
                     ) : (
                       <div className="bg-white rounded-xl border border-[#dadce0] overflow-hidden">
                         {subfolders.map((sf) => (
-                          <FolderCard key={sf.id} folder={sf} view="list" />
+                          <FolderCard
+                            key={sf.id}
+                            folder={sf}
+                            view="list"
+                            selected={selectedFolders.has(sf.id)}
+                            onSelect={handleSelectFolder}
+                            onDeleted={refresh}
+                            blikonId={userInfo?.blikonId}
+                          />
                         ))}
                       </div>
                     )}
@@ -180,8 +216,8 @@ export function FolderClient({
                           <FileGridItem
                             key={f.id}
                             file={f}
-                            selected={selected.has(f.id)}
-                            onSelect={handleSelect}
+                            selected={selectedFiles.has(f.id)}
+                            onSelect={handleSelectFile}
                             onDeleted={refresh}
                           />
                         ))}
@@ -189,8 +225,8 @@ export function FolderClient({
                     ) : (
                       <FileTableView
                         files={files}
-                        selected={selected}
-                        onSelect={handleSelect}
+                        selected={selectedFiles}
+                        onSelect={handleSelectFile}
                         onDeleted={refresh}
                       />
                     )}
