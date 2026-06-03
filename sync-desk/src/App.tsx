@@ -7,7 +7,7 @@ import { LoginView } from "./pages/LoginView";
 import { AppConfig, SyncEntry, AuthState, UserInfo } from "./types";
 
 const DEFAULT_CONFIG: AppConfig = {
-  apiUrl: "http://localhost:5086",
+  apiUrl: "https://api-blikondrive.com.blog",
   blikonId: "",
   syncFolders: [],
 };

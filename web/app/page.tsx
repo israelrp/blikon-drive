@@ -1,6 +1,12 @@
-import { redirect } from "next/navigation";
+import { requireSession } from "@/lib/auth";
+import { getFolderChildren } from "@/lib/api";
+import { HomeClient } from "./HomeClient";
 
-// En dev navegamos directo a un folder conocido
-export default function Home() {
-  redirect("/folder/folder-test-001");  // dev default
+export default async function HomePage() {
+  const [session, folders] = await Promise.all([
+    requireSession(),
+    getFolderChildren().catch(() => []),
+  ]);
+
+  return <HomeClient folders={folders} userInfo={session} />;
 }

@@ -186,7 +186,7 @@ async fn get_profile_with_cookies(app: AppHandle) -> Result<(), String> {
     {
         // Leer api_url del config guardado
         let api_url = app.state::<AppState>().lock().unwrap().config.api_url.clone();
-        let api_url = if api_url.is_empty() { "http://localhost:5086".to_string() } else { api_url };
+        let api_url = if api_url.is_empty() { "https://api-blikondrive.com.blog".to_string() } else { api_url };
 
         let profile = auth_cookies::get_validacel_profile(&win, &api_url).await?;
 
@@ -257,7 +257,7 @@ async fn open_login_window(app: AppHandle) -> Result<(), String> {
             async_runtime::spawn(async move {
                 if let Some(win) = app2.get_webview_window("login") {
                     let api_url2 = app2.state::<AppState>().lock().unwrap().config.api_url.clone();
-                    let api_url2 = if api_url2.is_empty() { "http://localhost:5086".to_string() } else { api_url2 };
+                    let api_url2 = if api_url2.is_empty() { "https://api-blikondrive.com.blog".to_string() } else { api_url2 };
                     match auth_cookies::get_validacel_profile(&win, &api_url2).await {
                         Ok(p) => {
                             let json = serde_json::json!({

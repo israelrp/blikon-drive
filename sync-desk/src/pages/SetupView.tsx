@@ -4,6 +4,8 @@ import { open } from "@tauri-apps/plugin-dialog";
 import { FolderOpen, Plus, Trash2, ArrowLeft, User, LogOut } from "lucide-react";
 import { AppConfig, SyncFolder, UserInfo } from "../types";
 
+const API_URL = "https://api-blikondrive.com.blog";
+
 export function SetupView({
   config,
   userInfo,
@@ -17,7 +19,6 @@ export function SetupView({
   onCancel: () => void;
   onLogout: () => void;
 }) {
-  const [apiUrl, setApiUrl] = useState(config.apiUrl);
   const [folders, setFolders] = useState<SyncFolder[]>(config.syncFolders);
   const [loggingOut, setLoggingOut] = useState(false);
 
@@ -34,17 +35,10 @@ export function SetupView({
   async function addFolder() {
     const selected = await open({ directory: true, multiple: false, title: "Selecciona carpeta local" });
     if (!selected || typeof selected !== "string") return;
-
     const name = selected.split("/").pop() ?? selected;
     setFolders((prev) => [
       ...prev,
-      {
-        id: crypto.randomUUID(),
-        localPath: selected,
-        coreFolderId: "",
-        label: name,
-        enabled: true,
-      },
+      { id: crypto.randomUUID(), localPath: selected, coreFolderId: "", label: name, enabled: true },
     ]);
   }
 
@@ -57,11 +51,10 @@ export function SetupView({
   }
 
   function handleSave() {
-    onSave({ apiUrl, blikonId: config.blikonId, syncFolders: folders });
+    onSave({ apiUrl: API_URL, blikonId: config.blikonId, syncFolders: folders });
   }
 
-  const canSave = apiUrl.trim() &&
-    folders.every((f) => f.localPath && f.coreFolderId.trim());
+  const canSave = folders.every((f) => f.localPath && f.coreFolderId.trim());
 
   return (
     <div className="flex flex-col h-screen bg-[#f6f8fc]">
@@ -107,12 +100,6 @@ export function SetupView({
             </div>
           </section>
         )}
-
-        {/* API */}
-        <section className="bg-white rounded-xl border border-[#dadce0] p-4 flex flex-col gap-3">
-          <p className="text-xs font-medium text-[#444746] uppercase tracking-wide">Conexión</p>
-          <Field label="URL de la API" value={apiUrl} onChange={setApiUrl} placeholder="http://localhost:5086" />
-        </section>
 
         {/* Carpetas */}
         <section className="bg-white rounded-xl border border-[#dadce0] p-4 flex flex-col gap-3">
