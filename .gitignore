@@ -4,7 +4,7 @@
 *.user
 *.suo
 .vs/
-appsettings.Production.json   # secretos de producción — usa variables de entorno
+# appsettings.Production.json va al repo (sin secretos, solo config no sensible)
 
 # ── Next.js ─────────────────────────────────────────────────────────────────
 web/.next/
