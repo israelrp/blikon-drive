@@ -4,12 +4,12 @@ on:
   push:
     branches:
       - main
-    paths:                              # solo corre cuando cambia algo del API
+    paths:
       - 'BlikonDrive.Api/**'
       - 'BlikonDrive.Core/**'
       - 'BlikonDrive.Infrastructure/**'
       - '.github/workflows/main_blikon-drive.yml'
-  workflow_dispatch:                    # permite lanzar manualmente desde GitHub
+  workflow_dispatch:
 
 jobs:
   build:
@@ -56,6 +56,32 @@ jobs:
         with:
           name: api-publish
           path: ./publish
+
+      # Configura los Application Settings en Azure usando los secrets de GitHub.
+      # Esto sobreescribe los valores en Azure cada deploy — fuente de verdad: GitHub Secrets.
+      - name: Configure App Settings
+        uses: azure/appservice-settings@v1
+        with:
+          app-name: 'blikon-drive'
+          publish-profile: ${{ secrets.AZUREAPPSERVICE_PUBLISHPROFILE_154982CC42484FEAA81855546F6A3339 }}
+          app-settings-json: |
+            [
+              {
+                "name": "ConnectionStrings__Postgres",
+                "value": "${{ secrets.CONNECTIONSTRING_POSTGRES }}",
+                "slotSetting": false
+              },
+              {
+                "name": "Azure__StorageConnectionString",
+                "value": "${{ secrets.AZURE_STORAGE_CONNECTION_STRING }}",
+                "slotSetting": false
+              },
+              {
+                "name": "Cors__AllowedOrigins__0",
+                "value": "${{ secrets.APP_URL }}",
+                "slotSetting": false
+              }
+            ]
 
       - name: Deploy to Azure Web App
         uses: azure/webapps-deploy@v3
