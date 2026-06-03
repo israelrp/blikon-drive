@@ -35,12 +35,12 @@ export function FolderClient({
 
   const refresh = useCallback(async () => {
     const [f, sf] = await Promise.all([
-      getFilesByFolder(folderId),
-      getFolderChildren(folderId),
+      getFilesByFolder(folderId, userInfo?.blikonId),
+      getFolderChildren(folderId, userInfo?.blikonId),
     ]);
     setFiles(f);
     setSubfolders(sf);
-  }, [folderId]);
+  }, [folderId, userInfo?.blikonId]);
 
   // SSE — escucha eventos del servidor para actualizaciones en tiempo real
   useEffect(() => {

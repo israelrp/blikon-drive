@@ -10,14 +10,14 @@ export default async function FolderPage({
   const { folderId } = await params;
   const decodedId = folderId.map(decodeURIComponent).join("/");
 
-  const [session] = await Promise.all([requireSession()]);
+  const session = await requireSession();
 
-  await ensureFolder(decodedId).catch(() => null);
+  await ensureFolder(decodedId, session.blikonId).catch(() => null);
 
   const [files, subfolders, breadcrumb] = await Promise.all([
-    getFilesByFolder(decodedId),
-    getFolderChildren(decodedId),
-    getFolderBreadcrumb(decodedId),
+    getFilesByFolder(decodedId, session.blikonId),
+    getFolderChildren(decodedId, session.blikonId),
+    getFolderBreadcrumb(decodedId, session.blikonId),
   ]);
 
   return (

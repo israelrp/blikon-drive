@@ -3,10 +3,8 @@ import { getFolderChildren } from "@/lib/api";
 import { HomeClient } from "./HomeClient";
 
 export default async function HomePage() {
-  const [session, folders] = await Promise.all([
-    requireSession(),
-    getFolderChildren().catch(() => []),
-  ]);
+  const session = await requireSession();
+  const folders = await getFolderChildren(undefined, session.blikonId).catch(() => []);
 
   return <HomeClient folders={folders} userInfo={session} />;
 }

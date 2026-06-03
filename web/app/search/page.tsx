@@ -1,4 +1,5 @@
 import { searchFiles } from "@/lib/api";
+import { requireSession } from "@/lib/auth";
 import { ArrowLeft, SearchX, Search } from "lucide-react";
 import Link from "next/link";
 import { DriveHeaderSearchWrapper } from "./DriveHeaderSearchWrapper";
@@ -10,7 +11,8 @@ export default async function SearchPage({
   searchParams: Promise<{ q?: string; folder?: string }>;
 }) {
   const { q, folder } = await searchParams;
-  const results = q ? await searchFiles(q, folder) : [];
+  const session = await requireSession();
+  const results = q ? await searchFiles(q, folder, session.blikonId) : [];
 
   return (
     <div className="flex flex-col h-screen bg-[#f6f8fc]">
