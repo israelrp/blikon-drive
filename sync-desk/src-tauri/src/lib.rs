@@ -61,16 +61,19 @@ const AUTH_BRIDGE_SCRIPT: &str = r#"
     fetch('https://api-authentication-v3.com.blog/api/v3/users', { credentials: 'include' })
       .then(function(r) { return r.json(); })
       .then(function(p) {
+        console.log('[BS] respuesta API keys:', Object.keys(p).join(', '));
+
+        // Soporte snake_case y camelCase por si la API varía
         var profile = {
-          blikonId:    p.blikon_id    || '',
-          cronoCode:   p.crono_code   || '',
-          profileName: p.profile_name || ((p.first_name || '') + ' ' + (p.last_name || '')).trim(),
+          blikonId:    p.blikon_id    || p.blikonId    || '',
+          cronoCode:   p.crono_code   || p.cronoCode   || '',
+          profileName: p.profile_name || p.profileName || ((p.first_name || p.firstName || '') + ' ' + (p.last_name || p.lastName || '')).trim(),
           email:       p.email        || '',
           photo:       p.photo        || '',
-          firstName:   p.first_name   || '',
-          lastName:    p.last_name    || ''
+          firstName:   p.first_name   || p.firstName   || '',
+          lastName:    p.last_name    || p.lastName     || ''
         };
-        console.log('[BS] perfil obtenido, blikonId=' + profile.blikonId);
+        console.log('[BS] perfil → blikonId=' + profile.blikonId + ' cronoCode=' + profile.cronoCode);
         window.location.href = 'tauri-auth://profile?d=' + encodeURIComponent(JSON.stringify(profile));
       })
       .catch(function(err) {
