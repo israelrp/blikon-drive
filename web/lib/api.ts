@@ -111,7 +111,7 @@ export interface DriveFolder {
 }
 
 export async function deleteFolder(id: string, blikonId?: string): Promise<void> {
-  await fetch(`${API}/api/folders/${encodeURIComponent(id)}`, {
+  await fetch(`${API}/api/folders?id=${encodeURIComponent(id)}`, {
     method: "DELETE",
     headers: blikonHeader(blikonId),
   });

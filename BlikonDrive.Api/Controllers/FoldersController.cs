@@ -106,8 +106,8 @@ public class FoldersController(DriveDbContext db) : ControllerBase
         return Ok(folder);
     }
 
-    [HttpDelete("{*id}")]
-    public async Task<IActionResult> Delete(string id)
+    [HttpDelete]
+    public async Task<IActionResult> Delete([FromQuery] string id)
     {
         var allIds = new List<string>();
         await CollectDescendants(id, allIds);
