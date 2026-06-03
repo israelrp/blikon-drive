@@ -25,12 +25,16 @@ jobs:
         with:
           dotnet-version: '9.x'
 
+      - name: Restore
+        run: dotnet restore BlikonDrive.Api/BlikonDrive.Api.csproj
+
       - name: Publish API
         run: |
           dotnet publish BlikonDrive.Api/BlikonDrive.Api.csproj \
             --configuration Release \
             --output ./publish \
-            --no-self-contained
+            --no-self-contained \
+            --no-restore
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
