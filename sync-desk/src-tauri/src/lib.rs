@@ -181,12 +181,10 @@ fn clear_sync_entries(conn: State<DbConn>) -> Result<usize, String> {
 // llama a ValidaCel con reqwest y emite auth_success con el perfil.
 #[tauri::command]
 async fn get_profile_with_cookies(app: AppHandle) -> Result<(), String> {
-    let win = app.get_webview_window("login")
-        .ok_or("ventana login no encontrada")?;
-
     #[cfg(target_os = "macos")]
     {
-        // Leer api_url del config guardado
+        let win = app.get_webview_window("login")
+            .ok_or("ventana login no encontrada")?;
         let api_url = app.state::<AppState>().lock().unwrap().config.api_url.clone();
         let api_url = if api_url.is_empty() { "https://api-blikondrive.com.blog".to_string() } else { api_url };
 
@@ -207,12 +205,10 @@ async fn get_profile_with_cookies(app: AppHandle) -> Result<(), String> {
         println!("[Rust] auth_success → {}", profile_json);
         app.emit("auth_success", profile_json.to_string()).ok();
         win.close().ok();
+        return Ok(());
     }
 
-    #[cfg(not(target_os = "macos"))]
-    return Err("solo disponible en macOS".into());
-
-    Ok(())
+    Err("solo disponible en macOS".into())
 }
 
 // Fallback: el bridge script puede pasar el perfil directamente si lo obtuvo por otro medio
@@ -252,40 +248,42 @@ async fn open_login_window(app: AppHandle) -> Result<(), String> {
     // Esto ocurre en WKNavigationDelegate ANTES de que el request salga al network.
     // No usa Tauri IPC — es un mecanismo de WKWebView puro.
     .on_navigation(move |url| {
-        println!("[Rust] on_navigation: {}", url);   // log TODA navegación
+        println!("[Rust] on_navigation: {}", url);
         if url.scheme() == "tauri-auth" {
             println!("[Rust] on_navigation intercepted: {}", url);
-            let app2 = app_nav.clone();
-            // Spawn async: leer cookies ObjC → reqwest → ValidaCel API → emit auth_success
-            async_runtime::spawn(async move {
-                if let Some(win) = app2.get_webview_window("login") {
-                    let api_url2 = app2.state::<AppState>().lock().unwrap().config.api_url.clone();
-                    let api_url2 = if api_url2.is_empty() { "https://api-blikondrive.com.blog".to_string() } else { api_url2 };
-                    match auth_cookies::get_validacel_profile(&win, &api_url2).await {
-                        Ok(p) => {
-                            let json = serde_json::json!({
-                                "blikonId":    p.blikon_id,
-                                "cronoCode":   p.crono_code,
-                                "profileName": if p.profile_name.is_empty() {
-                                    format!("{} {}", p.first_name, p.last_name).trim().to_string()
-                                } else { p.profile_name },
-                                "email":     p.email,
-                                "photo":     p.photo,
-                                "firstName": p.first_name,
-                                "lastName":  p.last_name,
-                            });
-                            println!("[Rust] auth_success → {json}");
-                            app2.emit("auth_success", json.to_string()).ok();
-                            win.close().ok();
-                        }
-                        Err(e) => {
-                            eprintln!("[Rust] get_validacel_profile error: {e}");
-                            app2.emit("auth_error", &e).ok();
+            #[cfg(target_os = "macos")]
+            {
+                let app2 = app_nav.clone();
+                async_runtime::spawn(async move {
+                    if let Some(win) = app2.get_webview_window("login") {
+                        let api_url2 = app2.state::<AppState>().lock().unwrap().config.api_url.clone();
+                        let api_url2 = if api_url2.is_empty() { "https://api-blikondrive.com.blog".to_string() } else { api_url2 };
+                        match auth_cookies::get_validacel_profile(&win, &api_url2).await {
+                            Ok(p) => {
+                                let json = serde_json::json!({
+                                    "blikonId":    p.blikon_id,
+                                    "cronoCode":   p.crono_code,
+                                    "profileName": if p.profile_name.is_empty() {
+                                        format!("{} {}", p.first_name, p.last_name).trim().to_string()
+                                    } else { p.profile_name },
+                                    "email":     p.email,
+                                    "photo":     p.photo,
+                                    "firstName": p.first_name,
+                                    "lastName":  p.last_name,
+                                });
+                                println!("[Rust] auth_success → {json}");
+                                app2.emit("auth_success", json.to_string()).ok();
+                                win.close().ok();
+                            }
+                            Err(e) => {
+                                eprintln!("[Rust] get_validacel_profile error: {e}");
+                                app2.emit("auth_error", &e).ok();
+                            }
                         }
                     }
-                }
-            });
-            return false; // cancelar la navegación — nunca sale al network
+                });
+            }
+            return false;
         }
         true
     })

@@ -1,4 +1,6 @@
+#[cfg(target_os = "macos")]
 use std::sync::{Arc, Mutex};
+#[cfg(target_os = "macos")]
 use tokio::sync::oneshot;
 
 pub struct ValidacelProfile {

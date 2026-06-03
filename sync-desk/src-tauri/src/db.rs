@@ -1,5 +1,5 @@
 use rusqlite::{Connection, Result, params};
-use crate::models::{AppConfig, SyncEntry, SyncFolder};
+use crate::models::{AppConfig, SyncEntry};
 
 pub fn open(data_dir: &std::path::Path) -> Result<Connection> {
     let path = data_dir.join("blikon-sync.db");
