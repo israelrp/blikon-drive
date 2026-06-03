@@ -57,6 +57,7 @@ public class AuthController : ControllerBase
             Photo       = body.Photo ?? "",
             FirstName   = body.FirstName ?? "",
             LastName    = body.LastName  ?? "",
+            CronoCode  = body.CronoCode ?? "",
         };
     }
 
@@ -73,6 +74,7 @@ public class ValidacelProfile
     public string Photo       { get; init; } = "";
     public string FirstName   { get; init; } = "";
     public string LastName    { get; init; } = "";
+    public string CronoCode  { get; init; } = "";
 }
 
 public class ValidacelUserResponse
@@ -91,4 +93,6 @@ public class ValidacelUserResponse
     public string? FirstName { get; init; }
     [System.Text.Json.Serialization.JsonPropertyName("last_name")]
     public string? LastName { get; init; }
+    [System.Text.Json.Serialization.JsonPropertyName("crono_code")]
+    public string? CronoCode { get; init; }
 }
