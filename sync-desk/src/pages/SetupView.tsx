@@ -172,7 +172,9 @@ export function SetupView({
                   <div className="flex items-center gap-2 px-3 py-2 bg-[#f0f4ff] border border-[#c2d7ff] rounded-lg">
                     <FolderSync size={14} className="text-[#1a73e8] shrink-0" />
                     <span className="text-sm font-mono text-[#1a73e8] flex-1">{f.coreFolderId}</span>
-                    <Lock size={12} className="text-[#9aa0a6] shrink-0" title="Para cambiar, elimina esta entrada y agrégala de nuevo" />
+                    <span title="Para cambiar, elimina esta entrada y agrégala de nuevo">
+                      <Lock size={12} className="text-[#9aa0a6] shrink-0" />
+                    </span>
                   </div>
                 </div>
               ) : (
