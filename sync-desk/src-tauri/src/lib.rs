@@ -300,6 +300,45 @@ async fn open_login_window(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// Obtiene los folders raíz del usuario desde la API (sin CORS — llamada Rust nativa).
+#[tauri::command]
+async fn get_remote_folders(state: State<'_, AppState>) -> Result<Vec<String>, String> {
+    let config = state.lock().unwrap().config.clone();
+    if config.blikon_id.is_empty() {
+        return Ok(vec![]);
+    }
+    let api_url = if config.api_url.is_empty() {
+        "https://api-blikondrive.com.blog".to_string()
+    } else {
+        config.api_url.clone()
+    };
+
+    let client = reqwest::Client::builder()
+        .timeout(std::time::Duration::from_secs(10))
+        .build()
+        .map_err(|e| e.to_string())?;
+
+    let resp = client
+        .get(format!("{api_url}/api/folders"))
+        .header("X-Blikon-Id", &config.blikon_id)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+
+    if !resp.status().is_success() {
+        return Ok(vec![]);
+    }
+
+    let folders: serde_json::Value = resp.json().await.map_err(|e| e.to_string())?;
+    let ids = folders.as_array()
+        .unwrap_or(&vec![])
+        .iter()
+        .filter_map(|f| f["id"].as_str().map(|s| s.to_string()))
+        .collect();
+
+    Ok(ids)
+}
+
 // ─── setup ───────────────────────────────────────────────────────────────────
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -333,6 +372,7 @@ pub fn run() {
             trigger_sync, pause_sync, resume_sync,
             logout, clear_sync_entries,
             get_profile_with_cookies, receive_profile, open_login_window,
+            get_remote_folders,
         ])
         .run(tauri::generate_context!())
         .expect("error running app");

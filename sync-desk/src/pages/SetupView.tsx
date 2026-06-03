@@ -1,10 +1,20 @@
-import { useState } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { invoke } from "@tauri-apps/api/core";
 import { open } from "@tauri-apps/plugin-dialog";
-import { FolderOpen, Plus, Trash2, ArrowLeft, User, LogOut } from "lucide-react";
+import { FolderOpen, Plus, Trash2, ArrowLeft, User, LogOut, Loader2, FolderSync, Lock } from "lucide-react";
 import { AppConfig, SyncFolder, UserInfo } from "../types";
 
 const API_URL = "https://api-blikondrive.com.blog";
+
+function slugify(v: string) {
+  return v
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/[^a-z0-9-]/g, "")
+    .replace(/-+/g, "-")
+    .replace(/^-|-$/g, "");
+}
 
 export function SetupView({
   config,
@@ -21,6 +31,23 @@ export function SetupView({
 }) {
   const [folders, setFolders] = useState<SyncFolder[]>(config.syncFolders);
   const [loggingOut, setLoggingOut] = useState(false);
+  const [remoteFolders, setRemoteFolders] = useState<string[]>([]);
+  const [loadingFolders, setLoadingFolders] = useState(false);
+
+  const loadFolders = useCallback(async () => {
+    if (!config.blikonId) return;
+    setLoadingFolders(true);
+    try {
+      const ids = await invoke<string[]>("get_remote_folders");
+      setRemoteFolders(ids);
+    } catch {
+      // sin conexión o sin folders todavía
+    } finally {
+      setLoadingFolders(false);
+    }
+  }, [config.blikonId]);
+
+  useEffect(() => { loadFolders(); }, [loadFolders]);
 
   async function handleLogout() {
     setLoggingOut(true);
@@ -125,20 +152,38 @@ export function SetupView({
 
           {folders.map((f) => (
             <div key={f.id} className="border border-[#dadce0] rounded-xl p-3 flex flex-col gap-2">
+              {/* Ruta local + botón eliminar */}
               <div className="flex items-center gap-2">
                 <FolderOpen size={16} className="text-[#1a73e8] shrink-0" />
                 <p className="text-sm text-[#202124] truncate flex-1 font-mono text-xs">{f.localPath}</p>
-                <button onClick={() => removeFolder(f.id)} className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-red-50">
+                <button
+                  onClick={() => removeFolder(f.id)}
+                  className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-red-50"
+                  title="Quitar de sincronización"
+                >
                   <Trash2 size={14} className="text-red-400" />
                 </button>
               </div>
-              <Field
-                label="Folder ID en Blikon Core"
-                value={f.coreFolderId}
-                onChange={(v) => updateFolder(f.id, { coreFolderId: v })}
-                placeholder="folder-test-001"
-                mono
-              />
+
+              {/* Folder en Drive — bloqueado si ya está asignado */}
+              {f.coreFolderId ? (
+                <div className="flex flex-col gap-1">
+                  <span className="text-xs text-[#444746]">Folder en Drive</span>
+                  <div className="flex items-center gap-2 px-3 py-2 bg-[#f0f4ff] border border-[#c2d7ff] rounded-lg">
+                    <FolderSync size={14} className="text-[#1a73e8] shrink-0" />
+                    <span className="text-sm font-mono text-[#1a73e8] flex-1">{f.coreFolderId}</span>
+                    <Lock size={12} className="text-[#9aa0a6] shrink-0" title="Para cambiar, elimina esta entrada y agrégala de nuevo" />
+                  </div>
+                </div>
+              ) : (
+                <FolderPicker
+                  value={f.coreFolderId}
+                  onChange={(v) => updateFolder(f.id, { coreFolderId: v })}
+                  remoteFolders={remoteFolders}
+                  loading={loadingFolders}
+                />
+              )}
+
               <div className="flex items-center gap-2">
                 <input
                   type="checkbox"
@@ -171,20 +216,70 @@ export function SetupView({
   );
 }
 
-function Field({ label, value, onChange, placeholder, mono }: {
-  label: string; value: string; onChange: (v: string) => void;
-  placeholder?: string; mono?: boolean;
+function FolderPicker({ value, onChange, remoteFolders, loading }: {
+  value: string;
+  onChange: (v: string) => void;
+  remoteFolders: string[];
+  loading: boolean;
 }) {
+  const isNew = value.trim() !== "" && !remoteFolders.includes(value);
+
+  function handleInput(raw: string) {
+    onChange(slugify(raw));
+  }
+
   return (
-    <div>
-      <label className="text-xs text-[#444746] block mb-1">{label}</label>
+    <div className="flex flex-col gap-1.5">
+      <label className="text-xs text-[#444746]">Folder en Drive</label>
+
+      {/* Input con auto-slug */}
       <input
         value={value}
-        onChange={(e) => onChange(e.target.value)}
-        placeholder={placeholder}
-        className={`w-full px-3 py-2 text-sm border border-[#dadce0] rounded-lg bg-[#f6f8fc]
-          focus:outline-none focus:ring-2 focus:ring-[#1a73e8] ${mono ? "font-mono" : ""}`}
+        onChange={(e) => handleInput(e.target.value)}
+        placeholder="obra-carpinteria"
+        className="w-full px-3 py-2 text-sm border border-[#dadce0] rounded-lg bg-[#f6f8fc] font-mono
+          focus:outline-none focus:ring-2 focus:ring-[#1a73e8]"
       />
+
+      {/* Indicador de nuevo folder */}
+      {isNew && (
+        <p className="text-xs text-[#1a73e8]">
+          Se creará el folder <span className="font-mono font-medium">"{value}"</span> al sincronizar
+        </p>
+      )}
+
+      {/* Folders existentes */}
+      <div className="flex flex-col gap-1">
+        {loading ? (
+          <div className="flex items-center gap-1.5 py-1">
+            <Loader2 size={12} className="animate-spin text-[#9aa0a6]" />
+            <span className="text-xs text-[#9aa0a6]">Cargando folders…</span>
+          </div>
+        ) : remoteFolders.length > 0 ? (
+          <>
+            <p className="text-xs text-[#9aa0a6]">Folders existentes:</p>
+            <div className="flex flex-wrap gap-1.5">
+              {remoteFolders.map((fid) => (
+                <button
+                  key={fid}
+                  type="button"
+                  onClick={() => onChange(fid)}
+                  className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs font-mono transition-colors
+                    ${value === fid
+                      ? "bg-[#1a73e8] text-white"
+                      : "bg-[#f0f4ff] text-[#1a73e8] hover:bg-[#d2e3fc]"
+                    }`}
+                >
+                  <FolderSync size={10} />
+                  {fid}
+                </button>
+              ))}
+            </div>
+          </>
+        ) : (
+          <p className="text-xs text-[#9aa0a6]">Sin folders en la cuenta — escribe uno nuevo arriba (ej: <span className="font-mono">obra-carpinteria</span>)</p>
+        )}
+      </div>
     </div>
   );
 }
