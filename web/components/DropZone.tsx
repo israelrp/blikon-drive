@@ -8,10 +8,12 @@ export function DropZone({
   coreFolderId,
   onUploaded,
   children,
+  cronoCode,
 }: {
   coreFolderId: string;
   onUploaded: () => void;
   children: React.ReactNode;
+  cronoCode?: string;
 }) {
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
@@ -34,12 +36,12 @@ export function DropZone({
 
     setUploading(true);
     for (const file of files) {
-      await uploadFile(coreFolderId, file, setProgress);
+      await uploadFile(coreFolderId, file, setProgress, cronoCode);
     }
     setUploading(false);
     setProgress(0);
     onUploaded();
-  }, [coreFolderId, onUploaded]);
+  }, [coreFolderId, onUploaded, cronoCode]);
 
   useEffect(() => {
     window.addEventListener("dragover", handleDragOver);

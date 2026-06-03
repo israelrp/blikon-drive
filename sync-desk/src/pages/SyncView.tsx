@@ -27,12 +27,12 @@ function UserAvatar({ userInfo }: { userInfo: UserInfo | null }) {
       src={userInfo.photo}
       alt={userInfo.profileName}
       className="w-7 h-7 rounded-full object-cover"
-      title={`${userInfo.profileName} · ${userInfo.blikonId}`}
+      title={`${userInfo.profileName} · ${userInfo.cronoCode}`}
     />
   ) : (
     <div
       className="w-7 h-7 rounded-full bg-[#1a73e8] flex items-center justify-center text-white text-xs font-semibold"
-      title={`${userInfo.profileName} · ${userInfo.blikonId}`}
+      title={`${userInfo.profileName} · ${userInfo.cronoCode}`}
     >
       {initial}
     </div>

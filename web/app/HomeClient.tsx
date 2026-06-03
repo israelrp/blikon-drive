@@ -8,7 +8,7 @@ import { DriveHeader } from "@/components/DriveHeader";
 import { ensureFolder, DriveFolder } from "@/lib/api";
 
 interface UserInfo {
-  blikonId: string; profileName: string; email: string; photo: string;
+  cronoCode: string; profileName: string; email: string; photo: string;
 }
 
 // Reglas: minúsculas, letras, números y guiones. Empieza con letra o número.
@@ -61,7 +61,7 @@ export function HomeClient({
 
     setLoading(true);
     try {
-      const folder = await ensureFolder(name);
+      const folder = await ensureFolder(name, userInfo.cronoCode);
       setFolders((prev) => prev.some((f) => f.id === folder.id) ? prev : [folder, ...prev]);
       setCreating(false);
       setInput("");
@@ -114,7 +114,7 @@ export function HomeClient({
                 {/* Preview del slug */}
                 {slug && (
                   <p className="text-xs text-[#444746] mt-1">
-                    URL: <span className="font-mono text-[#1a73e8]">drive-{slug}.com.blog</span>
+                    URL: <span className="font-mono text-[#1a73e8]">drive-{userInfo.cronoCode}-{slug}.com.blog</span>
                   </p>
                 )}
                 {error && (
@@ -184,7 +184,7 @@ export function HomeClient({
                     </div>
                     <div className="px-3 py-2">
                       <p className="text-sm font-medium text-[#202124] truncate">{f.name || f.id}</p>
-                      <p className="text-xs text-[#9aa0a6] font-mono truncate">drive-{f.id}.com.blog</p>
+                      <p className="text-xs text-[#9aa0a6] font-mono truncate">drive-{userInfo.cronoCode}-{f.id}.com.blog</p>
                     </div>
                   </>
                 ) : (
@@ -192,7 +192,7 @@ export function HomeClient({
                     <FolderOpen size={20} className="text-[#F9AB00] shrink-0" />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-[#202124] truncate">{f.name || f.id}</p>
-                      <p className="text-xs text-[#9aa0a6] font-mono truncate">drive-{f.id}.com.blog</p>
+                      <p className="text-xs text-[#9aa0a6] font-mono truncate">drive-{userInfo.cronoCode}-{f.id}.com.blog</p>
                     </div>
                   </>
                 )}

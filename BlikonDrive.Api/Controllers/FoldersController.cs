@@ -9,24 +9,21 @@ namespace BlikonDrive.Api.Controllers;
 [Route("api/[controller]")]
 public class FoldersController(DriveDbContext db) : ControllerBase
 {
-    private const string DevBlikonId = "dev-blikon-001";
+    private string CronoCode =>
+        Request.Headers.TryGetValue("X-Crono-Code", out var v) && !string.IsNullOrWhiteSpace(v)
+            ? v.ToString()
+            : "dev-crono-001";
 
-    /// <summary>
-    /// Recibe un path como "proyectos/clientes/blikon" y crea todos los folders
-    /// intermedios que no existan. Devuelve el folder hoja (el último).
-    /// También acepta un slug simple: "folder-test-002"
-    /// </summary>
     [HttpPost("ensure")]
     public async Task<IActionResult> Ensure([FromBody] EnsureFolderRequest req)
     {
-        // Normalizar a minúsculas y limpiar
+        var crono    = CronoCode;
         var segments = req.Path
             .Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(s => s.ToLower())
             .ToList();
 
-        if (segments.Count == 0)
-            return BadRequest("El path no puede estar vacío.");
+        if (segments.Count == 0) return BadRequest("El path no puede estar vacío.");
 
         string? parentId = req.ParentId?.ToLower();
         DriveFolder? leaf = null;
@@ -41,7 +38,7 @@ public class FoldersController(DriveDbContext db) : ControllerBase
                 folder = new DriveFolder
                 {
                     Id       = id,
-                    BlikonId = DevBlikonId,
+                    BlikonId = crono,
                     ParentId = parentId,
                     Name     = segments[i],
                 };
@@ -56,12 +53,12 @@ public class FoldersController(DriveDbContext db) : ControllerBase
         return Ok(leaf);
     }
 
-    // GET /api/folders → raíces
     [HttpGet]
     public async Task<IActionResult> GetRoots()
     {
+        var crono = CronoCode;
         var roots = await db.Folders
-            .Where(f => f.BlikonId == DevBlikonId && f.ParentId == null)
+            .Where(f => f.BlikonId == crono && f.ParentId == null)
             .OrderBy(f => f.Name)
             .Select(f => new FolderDto(
                 f.Id, f.Name, f.ParentId, f.CreatedAt,
@@ -72,12 +69,12 @@ public class FoldersController(DriveDbContext db) : ControllerBase
         return Ok(roots);
     }
 
-    // GET /api/folders/children?parentId=proyectos/clientes
     [HttpGet("children")]
     public async Task<IActionResult> GetChildren([FromQuery] string? parentId)
     {
+        var crono    = CronoCode;
         var children = await db.Folders
-            .Where(f => f.BlikonId == DevBlikonId && f.ParentId == parentId)
+            .Where(f => f.BlikonId == crono && f.ParentId == parentId)
             .OrderBy(f => f.Name)
             .Select(f => new FolderDto(
                 f.Id, f.Name, f.ParentId, f.CreatedAt,
@@ -88,25 +85,19 @@ public class FoldersController(DriveDbContext db) : ControllerBase
         return Ok(children);
     }
 
-    // GET /api/folders/breadcrumb?id=proyectos/clientes/blikon
     [HttpGet("breadcrumb")]
     public async Task<IActionResult> GetBreadcrumb([FromQuery] string id)
     {
-        var crumbs = new List<object>();
+        var crumbs  = new List<object>();
         var current = await db.Folders.FindAsync(id);
-
         while (current is not null)
         {
             crumbs.Insert(0, new { current.Id, current.Name });
-            current = current.ParentId is null
-                ? null
-                : await db.Folders.FindAsync(current.ParentId);
+            current = current.ParentId is null ? null : await db.Folders.FindAsync(current.ParentId);
         }
-
         return Ok(crumbs);
     }
 
-    // GET /api/folders/info?id=proyectos/clientes
     [HttpGet("info")]
     public async Task<IActionResult> GetInfo([FromQuery] string id)
     {

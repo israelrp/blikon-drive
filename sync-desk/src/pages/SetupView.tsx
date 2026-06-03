@@ -51,7 +51,7 @@ export function SetupView({
   }
 
   function handleSave() {
-    onSave({ apiUrl: API_URL, blikonId: config.blikonId, syncFolders: folders });
+    onSave({ apiUrl: API_URL, cronoCode: config.cronoCode, syncFolders: folders });
   }
 
   const canSave = folders.every((f) => f.localPath && f.coreFolderId.trim());
@@ -86,8 +86,8 @@ export function SetupView({
             </div>
             <div className="flex items-center justify-between pt-1">
               <div className="flex items-center gap-2">
-                <span className="text-xs text-[#444746]">Blikon ID:</span>
-                <span className="text-xs font-mono text-[#202124] bg-[#f6f8fc] px-2 py-0.5 rounded">{userInfo.blikonId}</span>
+                <span className="text-xs text-[#444746]">Crono Code:</span>
+                <span className="text-xs font-mono text-[#202124] bg-[#f6f8fc] px-2 py-0.5 rounded">{userInfo.cronoCode}</span>
               </div>
               <button
                 onClick={handleLogout}

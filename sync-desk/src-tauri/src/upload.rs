@@ -30,6 +30,7 @@ async fn parse_json<T: for<'de> Deserialize<'de>>(
 pub async fn upload_file(
     client: &Client,
     api_url: &str,
+    crono_code: &str,
     core_folder_id: &str,
     file_path: &Path,
     on_progress: impl Fn(i32),
@@ -42,6 +43,7 @@ pub async fn upload_file(
     // 1. Init
     let resp = client
         .post(format!("{api_url}/api/files/upload/init"))
+        .header("X-Crono-Code", crono_code)
         .json(&serde_json::json!({
             "coreFolderId": core_folder_id,
             "fileName":     file_name,
@@ -70,6 +72,7 @@ pub async fn upload_file(
 
         let resp = client
             .post(format!("{api_url}/api/files/upload/{}/chunk?offset={}&totalSize={}", init.id, offset, size_bytes))
+            .header("X-Crono-Code", crono_code)
             .multipart(form)
             .send().await?;
         let chunk: ChunkResponse = parse_json(resp, "upload/chunk").await?;
@@ -81,6 +84,7 @@ pub async fn upload_file(
     // 3. Commit
     client
         .post(format!("{api_url}/api/files/upload/{}/commit", init.id))
+        .header("X-Crono-Code", crono_code)
         .json(&serde_json::json!({ "blockIds": block_ids }))
         .send().await?;
 

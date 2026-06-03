@@ -13,6 +13,7 @@ export interface UserProfile {
   photo:       string;
   firstName:   string;
   lastName:    string;
+  cronoCode:   string;   // identificador único del usuario en Blikon
 }
 
 const DEV_PROFILE: UserProfile = {
@@ -22,6 +23,7 @@ const DEV_PROFILE: UserProfile = {
   photo:       "",
   firstName:   "Dev",
   lastName:    "User",
+  cronoCode:   "dev-crono-001",
 };
 
 /**
@@ -60,6 +62,7 @@ export async function getSession(): Promise<UserProfile | null> {
       photo:       data.photo       ?? "",
       firstName:   data.firstName   ?? "",
       lastName:    data.lastName    ?? "",
+      cronoCode:   data.cronoCode   ?? "",
     };
   } catch {
     return null;

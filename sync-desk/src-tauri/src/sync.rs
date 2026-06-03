@@ -14,9 +14,10 @@ pub struct SyncState {
 }
 
 /// Llama a /api/folders/ensure para crear el folder y toda su cadena de padres.
-async fn ensure_folder(client: &Client, api_url: &str, path: &str) {
+async fn ensure_folder(client: &Client, api_url: &str, crono_code: &str, path: &str) {
     let _ = client
         .post(format!("{api_url}/api/folders/ensure"))
+        .header("X-Crono-Code", crono_code)
         .json(&serde_json::json!({ "path": path }))
         .send()
         .await;
@@ -31,6 +32,7 @@ async fn collect_files_recursive(
     base_folder_id: &str,
     client:         &Client,
     api_url:        &str,
+    crono_code:     &str,
 ) -> Vec<(PathBuf, String)> {
     let mut result = Vec::new();
 
@@ -54,7 +56,7 @@ async fn collect_files_recursive(
             let sub_folder_id = format!("{}/{}", base_folder_id, rel_str);
 
             // Asegurarnos de que el folder exista en Drive
-            ensure_folder(client, api_url, &sub_folder_id).await;
+            ensure_folder(client, api_url, crono_code, &sub_folder_id).await;
 
             // Descender recursivamente
             let mut sub = Box::pin(collect_files_recursive(
@@ -63,6 +65,7 @@ async fn collect_files_recursive(
                 &sub_folder_id,
                 client,
                 api_url,
+                crono_code,
             )).await;
             result.append(&mut sub);
         }
@@ -94,7 +97,7 @@ pub async fn run_sync(
         }
 
         // Asegurar que el folder raíz existe en Drive
-        ensure_folder(&client, &config.api_url, &folder.core_folder_id).await;
+        ensure_folder(&client, &config.api_url, &config.crono_code, &folder.core_folder_id).await;
 
         // Recopilar todos los archivos recursivamente
         let files = collect_files_recursive(
@@ -103,6 +106,7 @@ pub async fn run_sync(
             &folder.core_folder_id,
             &client,
             &config.api_url,
+            &config.crono_code,
         ).await;
 
         for (file_path, core_folder_id) in files {
@@ -143,6 +147,7 @@ pub async fn run_sync(
             let result = upload::upload_file(
                 &client,
                 &config.api_url,
+                &config.crono_code,
                 &core_folder_id,
                 &file_path,
                 move |pct| {

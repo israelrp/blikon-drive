@@ -11,7 +11,7 @@ interface UserInfo {
   profileName: string;
   email:       string;
   photo:       string;
-  blikonId:    string;
+  cronoCode:   string;
 }
 
 export function DriveHeader({
@@ -47,7 +47,7 @@ export function DriveHeader({
     setUploading(true);
     for (const file of Array.from(files)) {
       setProgress(0);
-      await uploadFile(coreFolderId, file, setProgress).catch(() => {});
+      await uploadFile(coreFolderId, file, setProgress, userInfo?.cronoCode).catch(() => {});
     }
     setUploading(false);
     setProgress(0);
@@ -162,7 +162,7 @@ function UserAvatar({
       <button
         onClick={() => setOpen((o) => !o)}
         className="w-9 h-9 rounded-full overflow-hidden focus:outline-none focus:ring-2 focus:ring-[#1a73e8] focus:ring-offset-1"
-        title={userInfo ? `${userInfo.profileName} · ${userInfo.blikonId}` : "Cuenta"}
+        title={userInfo ? `${userInfo.profileName} · ${userInfo.cronoCode}` : "Cuenta"}
       >
         {userInfo?.photo ? (
           <img src={userInfo.photo} alt={userInfo.profileName} className="w-full h-full object-cover" />
@@ -183,7 +183,7 @@ function UserAvatar({
               <div className="px-4 py-3 border-b border-[#e8eaed]">
                 <p className="text-sm font-medium text-[#202124] truncate">{userInfo.profileName}</p>
                 <p className="text-xs text-[#444746] truncate">{userInfo.email}</p>
-                <p className="text-xs font-mono text-[#9aa0a6] mt-0.5 truncate">{userInfo.blikonId}</p>
+                <p className="text-xs font-mono text-[#9aa0a6] mt-0.5 truncate">{userInfo.cronoCode}</p>
               </div>
             )}
             <button

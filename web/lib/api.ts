@@ -1,5 +1,10 @@
 const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5086";
 
+// Header que identifica al usuario en el API
+function cronoHeader(cronoCode?: string): HeadersInit {
+  return cronoCode ? { "X-Crono-Code": cronoCode } : {};
+}
+
 export interface DriveFile {
   id: string;
   name: string;
@@ -30,8 +35,9 @@ export interface Comment {
   createdAt: string;
 }
 
-export async function getFilesByFolder(coreFolderId: string): Promise<DriveFile[]> {
-  const res = await fetch(`${API}/api/files/folder?coreFolderId=${encodeURIComponent(coreFolderId)}`, { cache: "no-store" });
+export async function getFilesByFolder(coreFolderId: string, cronoCode?: string): Promise<DriveFile[]> {
+  const res = await fetch(`${API}/api/files/folder?coreFolderId=${encodeURIComponent(coreFolderId)}`,
+    { cache: "no-store", headers: cronoHeader(cronoCode) });
   if (!res.ok) throw new Error("Error cargando archivos");
   return res.json();
 }
@@ -42,10 +48,11 @@ export async function getFileById(id: string): Promise<FileDetail> {
   return res.json();
 }
 
-export async function searchFiles(q: string, coreFolderId?: string): Promise<DriveFile[]> {
+export async function searchFiles(q: string, coreFolderId?: string, cronoCode?: string): Promise<DriveFile[]> {
   const params = new URLSearchParams({ q });
   if (coreFolderId) params.set("coreFolderId", coreFolderId);
-  const res = await fetch(`${API}/api/files/search?${params}`, { cache: "no-store" });
+  const res = await fetch(`${API}/api/files/search?${params}`,
+    { cache: "no-store", headers: cronoHeader(cronoCode) });
   if (!res.ok) throw new Error("Error en búsqueda");
   return res.json();
 }
@@ -79,14 +86,14 @@ export async function addComment(id: string, body: string) {
   return res.json();
 }
 
-export async function deleteFile(id: string) {
-  await fetch(`${API}/api/files/${id}`, { method: "DELETE" });
+export async function deleteFile(id: string, cronoCode?: string) {
+  await fetch(`${API}/api/files/${id}`, { method: "DELETE", headers: cronoHeader(cronoCode) });
 }
 
-export async function batchDeleteFiles(ids: string[]): Promise<number> {
+export async function batchDeleteFiles(ids: string[], cronoCode?: string): Promise<number> {
   const res = await fetch(`${API}/api/files/batch-delete`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...cronoHeader(cronoCode) },
     body: JSON.stringify({ ids }),
   });
   if (!res.ok) throw new Error("Error eliminando archivos");
@@ -103,25 +110,27 @@ export interface DriveFolder {
   fileCount: number;
 }
 
-export async function ensureFolder(path: string, parentId?: string): Promise<DriveFolder> {
+export async function ensureFolder(path: string, cronoCode?: string, parentId?: string): Promise<DriveFolder> {
   const res = await fetch(`${API}/api/folders/ensure`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...cronoHeader(cronoCode) },
     body: JSON.stringify({ path, parentId }),
   });
   if (!res.ok) throw new Error("Error creando folder");
   return res.json();
 }
 
-export async function getFolderChildren(parentId?: string): Promise<DriveFolder[]> {
+export async function getFolderChildren(parentId?: string, cronoCode?: string): Promise<DriveFolder[]> {
   const params = parentId ? `?parentId=${encodeURIComponent(parentId)}` : "";
-  const res = await fetch(`${API}/api/folders/children${params}`, { cache: "no-store" });
+  const res = await fetch(`${API}/api/folders/children${params}`,
+    { cache: "no-store", headers: cronoHeader(cronoCode) });
   if (!res.ok) throw new Error("Error cargando sub-folders");
   return res.json();
 }
 
-export async function getFolderBreadcrumb(id: string): Promise<{ id: string; name: string }[]> {
-  const res = await fetch(`${API}/api/folders/breadcrumb?id=${encodeURIComponent(id)}`, { cache: "no-store" });
+export async function getFolderBreadcrumb(id: string, cronoCode?: string): Promise<{ id: string; name: string }[]> {
+  const res = await fetch(`${API}/api/folders/breadcrumb?id=${encodeURIComponent(id)}`,
+    { cache: "no-store", headers: cronoHeader(cronoCode) });
   if (!res.ok) return [];
   return res.json();
 }
@@ -132,11 +141,12 @@ const CHUNK_SIZE = 4 * 1024 * 1024;
 export async function uploadFile(
   coreFolderId: string,
   file: File,
-  onProgress: (pct: number) => void
+  onProgress: (pct: number) => void,
+  cronoCode?: string
 ): Promise<string> {
   const initRes = await fetch(`${API}/api/files/upload/init`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...cronoHeader(cronoCode) },
     body: JSON.stringify({
       coreFolderId,
       fileName: file.name,
@@ -159,7 +169,7 @@ export async function uploadFile(
 
     const chunkRes = await fetch(
       `${API}/api/files/upload/${fileId}/chunk?offset=${start}&totalSize=${file.size}`,
-      { method: "POST", body: form }
+      { method: "POST", headers: cronoHeader(cronoCode), body: form }
     );
     const { blockId } = await chunkRes.json();
     blockIds.push(blockId);
@@ -168,7 +178,7 @@ export async function uploadFile(
 
   await fetch(`${API}/api/files/upload/${fileId}/commit`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...cronoHeader(cronoCode) },
     body: JSON.stringify({ blockIds }),
   });
 

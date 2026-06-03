@@ -3,7 +3,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize, Default)]
 #[serde(rename_all = "camelCase")]
 pub struct UserProfile {
-    pub blikon_id:    String,
+    pub crono_code:   String,
     pub profile_name: String,
     pub email:        String,
     pub photo:        String,
@@ -15,7 +15,7 @@ pub struct UserProfile {
 #[serde(rename_all = "camelCase")]
 pub struct AppConfig {
     pub api_url:      String,
-    pub blikon_id:    String,
+    pub crono_code:   String,
     pub sync_folders: Vec<SyncFolder>,
     #[serde(default)]
     pub user_profile: Option<UserProfile>,
