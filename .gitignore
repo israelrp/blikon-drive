@@ -1,0 +1,26 @@
+# ── .NET ────────────────────────────────────────────────────────────────────
+**/bin/
+**/obj/
+*.user
+*.suo
+.vs/
+appsettings.Production.json   # secretos de producción — usa variables de entorno
+
+# ── Next.js ─────────────────────────────────────────────────────────────────
+web/.next/
+web/node_modules/
+web/.env.local
+web/.env.production.local
+
+# ── Tauri / Rust ─────────────────────────────────────────────────────────────
+sync-desk/src-tauri/target/
+sync-desk/node_modules/
+sync-desk/dist/
+
+# ── Azurite (emulador local Azure Storage) ───────────────────────────────────
+/tmp/azurite/
+
+# ── Sistema ──────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.log

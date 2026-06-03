@@ -1,0 +1,68 @@
+using Azure.Storage.Blobs;
+using Azure.Storage.Blobs.Models;
+using Azure.Storage.Blobs.Specialized;
+using Azure.Storage.Sas;
+using BlikonDrive.Core.Interfaces;
+using Microsoft.Extensions.Configuration;
+
+namespace BlikonDrive.Infrastructure.Azure;
+
+public class BlobStorageService : IBlobStorageService
+{
+    private readonly BlobServiceClient _client;
+    private readonly string _container;
+    private readonly BlobContainerClient _containerClient;
+
+    public BlobStorageService(IConfiguration config)
+    {
+        _client = new(config["Azure:StorageConnectionString"]);
+        _container = config["Azure:ContainerName"] ?? "blikon-drive";
+        _containerClient = _client.GetBlobContainerClient(_container);
+        _containerClient.CreateIfNotExists(PublicAccessType.None);
+    }
+
+    public async Task<string> UploadChunkAsync(string blobPath, Stream chunk, long offset, long totalSize, CancellationToken ct = default)
+    {
+        var blockClient = GetBlockClient(blobPath);
+        var blockId = Convert.ToBase64String(Guid.NewGuid().ToByteArray());
+        await blockClient.StageBlockAsync(blockId, chunk, cancellationToken: ct);
+        return blockId;
+    }
+
+    public async Task CommitBlocksAsync(string blobPath, IEnumerable<string> blockIds, CancellationToken ct = default)
+    {
+        var blockClient = GetBlockClient(blobPath);
+        await blockClient.CommitBlockListAsync(blockIds, cancellationToken: ct);
+    }
+
+    public async Task<Stream> DownloadAsync(string blobPath, CancellationToken ct = default)
+    {
+        var blob = GetBlobClient(blobPath);
+        var response = await blob.DownloadStreamingAsync(cancellationToken: ct);
+        return response.Value.Content;
+    }
+
+    public async Task DeleteAsync(string blobPath, CancellationToken ct = default)
+    {
+        var blob = GetBlobClient(blobPath);
+        await blob.DeleteIfExistsAsync(DeleteSnapshotsOption.IncludeSnapshots, cancellationToken: ct);
+    }
+
+    public Uri GetDownloadUri(string blobPath, TimeSpan expiry)
+    {
+        var blob = GetBlobClient(blobPath);
+        var sasBuilder = new BlobSasBuilder(BlobSasPermissions.Read, DateTimeOffset.UtcNow.Add(expiry))
+        {
+            BlobContainerName = _container,
+            BlobName = blobPath,
+            Resource = "b"
+        };
+        return blob.GenerateSasUri(sasBuilder);
+    }
+
+    private BlockBlobClient GetBlockClient(string blobPath) =>
+        _containerClient.GetBlockBlobClient(blobPath);
+
+    private BlobClient GetBlobClient(string blobPath) =>
+        _containerClient.GetBlobClient(blobPath);
+}
