@@ -36,7 +36,8 @@ export default function App() {
     // Arrancar con sesión guardada si existe (sin ninguna llamada a red)
     invoke<AppConfig>("get_config").then((cfg) => {
       setConfig(cfg);
-      if (cfg.blikonId && !cfg.blikonId.startsWith("dev-") && cfg.userProfile) {
+      const userId = cfg.blikonId || cfg.cronoCode;
+      if (userId && !userId.startsWith("dev-") && cfg.userProfile) {
         setUserInfo(cfg.userProfile);
         setAuthState("authenticated");
       } else {

@@ -55,12 +55,30 @@ const AUTH_BRIDGE_SCRIPT: &str = r#"
     if (signaled) return;
     if (!isSuccessPage()) return;
     signaled = true;
-    console.log('[BS] SUCCESS — tauri-auth://get-profile');
     showBanner('Conectando con Blikon Sync…', '#1a73e8');
-    window.location.href = 'tauri-auth://get-profile';
+
+    // Obtener perfil desde la API (sin CORS — corremos en contexto validacel.com.blog)
+    fetch('https://api-authentication-v3.com.blog/api/v3/users', { credentials: 'include' })
+      .then(function(r) { return r.json(); })
+      .then(function(p) {
+        var profile = {
+          blikonId:    p.blikon_id    || '',
+          cronoCode:   p.crono_code   || '',
+          profileName: p.profile_name || ((p.first_name || '') + ' ' + (p.last_name || '')).trim(),
+          email:       p.email        || '',
+          photo:       p.photo        || '',
+          firstName:   p.first_name   || '',
+          lastName:    p.last_name    || ''
+        };
+        console.log('[BS] perfil obtenido, blikonId=' + profile.blikonId);
+        window.location.href = 'tauri-auth://profile?d=' + encodeURIComponent(JSON.stringify(profile));
+      })
+      .catch(function(err) {
+        console.warn('[BS] fetch perfil falló, fallback macos:', err);
+        window.location.href = 'tauri-auth://get-profile';
+      });
   }
 
-  // Intentar inmediatamente y en cada cambio del DOM
   function setup() {
     setTimeout(trySignal, 800);
     setTimeout(trySignal, 2000);
@@ -251,8 +269,29 @@ async fn open_login_window(app: AppHandle) -> Result<(), String> {
         println!("[Rust] on_navigation: {}", url);
         if url.scheme() == "tauri-auth" {
             println!("[Rust] on_navigation intercepted: {}", url);
+
+            // Cross-platform: perfil en query param d= (bridge script lo obtiene por JS)
+            if url.host_str() == Some("profile") {
+                for (key, value) in url.query_pairs() {
+                    if key == "d" {
+                        let profile_str = value.into_owned();
+                        let app2 = app_nav.clone();
+                        async_runtime::spawn(async move {
+                            println!("[Rust] auth_success via URL profile");
+                            app2.emit("auth_success", &profile_str).ok();
+                            if let Some(win) = app2.get_webview_window("login") {
+                                win.close().ok();
+                            }
+                        });
+                        break;
+                    }
+                }
+                return false;
+            }
+
+            // Fallback macOS: lectura directa de cookies WKWebView
             #[cfg(target_os = "macos")]
-            {
+            if url.host_str() == Some("get-profile") {
                 let app2 = app_nav.clone();
                 async_runtime::spawn(async move {
                     if let Some(win) = app2.get_webview_window("login") {
@@ -271,7 +310,7 @@ async fn open_login_window(app: AppHandle) -> Result<(), String> {
                                     "firstName": p.first_name,
                                     "lastName":  p.last_name,
                                 });
-                                println!("[Rust] auth_success → {json}");
+                                println!("[Rust] auth_success via cookies → {json}");
                                 app2.emit("auth_success", json.to_string()).ok();
                                 win.close().ok();
                             }
@@ -283,6 +322,7 @@ async fn open_login_window(app: AppHandle) -> Result<(), String> {
                     }
                 });
             }
+
             return false;
         }
         true
