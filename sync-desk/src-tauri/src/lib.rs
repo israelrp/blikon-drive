@@ -113,6 +113,7 @@ async fn save_user_profile(
     conn:    State<'_, DbConn>,
 ) -> Result<(), String> {
     let mut config = { state.lock().unwrap().config.clone() };
+    config.blikon_id    = profile.blikon_id.clone();
     config.crono_code   = profile.crono_code.clone();
     config.user_profile = Some(profile);
     { db::save_config(&conn.lock().unwrap(), &config).map_err(|e| e.to_string())?; }
@@ -145,6 +146,7 @@ async fn logout(
     conn:  State<'_, DbConn>,
 ) -> Result<(), String> {
     let mut config = { state.lock().unwrap().config.clone() };
+    config.blikon_id    = String::new();
     config.crono_code   = String::new();
     config.user_profile = None;
     config.sync_folders = Vec::new();   // limpiar folders también
@@ -191,6 +193,7 @@ async fn get_profile_with_cookies(app: AppHandle) -> Result<(), String> {
         let profile = auth_cookies::get_validacel_profile(&win, &api_url).await?;
 
         let profile_json = serde_json::json!({
+            "blikonId":    profile.blikon_id,
             "cronoCode":   profile.crono_code,
             "profileName": if profile.profile_name.is_empty() {
                 format!("{} {}", profile.first_name, profile.last_name).trim().to_string()
@@ -261,6 +264,7 @@ async fn open_login_window(app: AppHandle) -> Result<(), String> {
                     match auth_cookies::get_validacel_profile(&win, &api_url2).await {
                         Ok(p) => {
                             let json = serde_json::json!({
+                                "blikonId":    p.blikon_id,
                                 "cronoCode":   p.crono_code,
                                 "profileName": if p.profile_name.is_empty() {
                                     format!("{} {}", p.first_name, p.last_name).trim().to_string()

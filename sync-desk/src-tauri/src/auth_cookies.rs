@@ -2,6 +2,7 @@ use std::sync::{Arc, Mutex};
 use tokio::sync::oneshot;
 
 pub struct ValidacelProfile {
+    pub blikon_id:    String,
     pub crono_code:   String,
     pub profile_name: String,
     pub email:        String,
@@ -55,13 +56,14 @@ pub async fn get_validacel_profile(
     let p: serde_json::Value = serde_json::from_str(&text)
         .map_err(|e| format!("parse profile: {e}"))?;
 
-    let crono_code = p["cronoCode"].as_str().unwrap_or("").to_string();
-    if crono_code.is_empty() {
-        return Err(format!("cronoCode vacío en respuesta: {p}"));
+    let blikon_id = p["blikonId"].as_str().unwrap_or("").to_string();
+    if blikon_id.is_empty() {
+        return Err(format!("blikonId vacío en respuesta: {p}"));
     }
 
     Ok(ValidacelProfile {
-        crono_code,
+        blikon_id,
+        crono_code: p["cronoCode"].as_str().unwrap_or("").to_string(),
         profile_name: p["profileName"].as_str().unwrap_or("").to_string(),
         email:        p["email"].as_str().unwrap_or("").to_string(),
         photo:        p["photo"].as_str().unwrap_or("").to_string(),

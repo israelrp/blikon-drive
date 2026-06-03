@@ -11,7 +11,7 @@ import { getFilesByFolder, getFolderChildren, batchDeleteFiles, DriveFile, Drive
 import { FolderOpen, ChevronRight, Trash2, X, CheckSquare } from "lucide-react";
 
 interface UserInfo {
-  cronoCode: string; profileName: string; email: string; photo: string;
+  blikonId: string; cronoCode: string; profileName: string; email: string; photo: string;
 }
 
 export function FolderClient({
@@ -75,7 +75,7 @@ export function FolderClient({
     if (selected.size === 0) return;
     setDeleting(true);
     try {
-      await batchDeleteFiles(Array.from(selected), userInfo?.cronoCode);
+      await batchDeleteFiles(Array.from(selected), userInfo?.blikonId);
       setSelected(new Set());
       await refresh();
     } finally {
@@ -91,7 +91,7 @@ export function FolderClient({
       <DriveHeader view={view} onViewChange={setView} coreFolderId={folderId} onUploaded={refresh} userInfo={userInfo} />
 
       <div className="flex flex-1 min-h-0">
-        <DropZone coreFolderId={folderId} onUploaded={refresh} cronoCode={userInfo?.cronoCode}>
+        <DropZone coreFolderId={folderId} onUploaded={refresh} blikonId={userInfo?.blikonId}>
           <main className="flex-1 overflow-y-auto px-6 py-4">
             {/* Breadcrumb */}
             <nav className="flex items-center gap-1 mb-4 text-sm text-[#444746] flex-wrap">

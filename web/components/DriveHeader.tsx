@@ -11,6 +11,7 @@ interface UserInfo {
   profileName: string;
   email:       string;
   photo:       string;
+  blikonId:    string;
   cronoCode:   string;
 }
 
@@ -47,7 +48,7 @@ export function DriveHeader({
     setUploading(true);
     for (const file of Array.from(files)) {
       setProgress(0);
-      await uploadFile(coreFolderId, file, setProgress, userInfo?.cronoCode).catch(() => {});
+      await uploadFile(coreFolderId, file, setProgress, userInfo?.blikonId).catch(() => {});
     }
     setUploading(false);
     setProgress(0);

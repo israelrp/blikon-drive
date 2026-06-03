@@ -9,15 +9,15 @@ namespace BlikonDrive.Api.Controllers;
 [Route("api/[controller]")]
 public class FoldersController(DriveDbContext db) : ControllerBase
 {
-    private string CronoCode =>
-        Request.Headers.TryGetValue("X-Crono-Code", out var v) && !string.IsNullOrWhiteSpace(v)
+    private string BlikonId =>
+        Request.Headers.TryGetValue("X-Blikon-Id", out var v) && !string.IsNullOrWhiteSpace(v)
             ? v.ToString()
-            : "dev-crono-001";
+            : "dev-blikon-001";
 
     [HttpPost("ensure")]
     public async Task<IActionResult> Ensure([FromBody] EnsureFolderRequest req)
     {
-        var crono    = CronoCode;
+        var blikonId = BlikonId;
         var segments = req.Path
             .Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(s => s.ToLower())
@@ -38,7 +38,7 @@ public class FoldersController(DriveDbContext db) : ControllerBase
                 folder = new DriveFolder
                 {
                     Id       = id,
-                    BlikonId = crono,
+                    BlikonId = blikonId,
                     ParentId = parentId,
                     Name     = segments[i],
                 };
@@ -56,9 +56,9 @@ public class FoldersController(DriveDbContext db) : ControllerBase
     [HttpGet]
     public async Task<IActionResult> GetRoots()
     {
-        var crono = CronoCode;
+        var blikonId = BlikonId;
         var roots = await db.Folders
-            .Where(f => f.BlikonId == crono && f.ParentId == null)
+            .Where(f => f.BlikonId == blikonId && f.ParentId == null)
             .OrderBy(f => f.Name)
             .Select(f => new FolderDto(
                 f.Id, f.Name, f.ParentId, f.CreatedAt,
@@ -72,9 +72,9 @@ public class FoldersController(DriveDbContext db) : ControllerBase
     [HttpGet("children")]
     public async Task<IActionResult> GetChildren([FromQuery] string? parentId)
     {
-        var crono    = CronoCode;
+        var blikonId = BlikonId;
         var children = await db.Folders
-            .Where(f => f.BlikonId == crono && f.ParentId == parentId)
+            .Where(f => f.BlikonId == blikonId && f.ParentId == parentId)
             .OrderBy(f => f.Name)
             .Select(f => new FolderDto(
                 f.Id, f.Name, f.ParentId, f.CreatedAt,

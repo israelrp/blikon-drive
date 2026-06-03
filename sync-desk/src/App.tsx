@@ -8,6 +8,7 @@ import { AppConfig, SyncEntry, AuthState, UserInfo } from "./types";
 
 const DEFAULT_CONFIG: AppConfig = {
   apiUrl: "https://api-blikondrive.com.blog",
+  blikonId: "",
   cronoCode: "",
   syncFolders: [],
 };
@@ -35,7 +36,7 @@ export default function App() {
     // Arrancar con sesión guardada si existe (sin ninguna llamada a red)
     invoke<AppConfig>("get_config").then((cfg) => {
       setConfig(cfg);
-      if (cfg.cronoCode && !cfg.cronoCode.startsWith("dev-") && cfg.userProfile) {
+      if (cfg.blikonId && !cfg.blikonId.startsWith("dev-") && cfg.userProfile) {
         setUserInfo(cfg.userProfile);
         setAuthState("authenticated");
       } else {

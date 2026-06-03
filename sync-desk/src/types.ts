@@ -3,6 +3,7 @@ export type SyncStatus = "idle" | "syncing" | "error" | "paused";
 export type AuthState = "checking" | "authenticated" | "unauthenticated";
 
 export interface UserInfo {
+  blikonId:    string;
   cronoCode:   string;
   profileName: string;
   email:       string;
@@ -34,6 +35,7 @@ export interface SyncEntry {
 
 export interface AppConfig {
   apiUrl:       string;
+  blikonId:     string;
   cronoCode:    string;
   syncFolders:  SyncFolder[];
   userProfile?: UserInfo;

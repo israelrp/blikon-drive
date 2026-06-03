@@ -13,18 +13,18 @@ namespace BlikonDrive.Api.Controllers;
 [Route("api/[controller]")]
 public class FilesController(DriveDbContext db, IBlobStorageService storage, FileEventService events) : ControllerBase
 {
-    // Lee el CronoCode del header X-Crono-Code (enviado por web y sync-desk).
+    // Lee el BlikonId del header X-Blikon-Id (enviado por web y sync-desk).
     // En dev usa el fallback si no viene el header.
-    private string CronoCode =>
-        Request.Headers.TryGetValue("X-Crono-Code", out var v) && !string.IsNullOrWhiteSpace(v)
+    private string BlikonId =>
+        Request.Headers.TryGetValue("X-Blikon-Id", out var v) && !string.IsNullOrWhiteSpace(v)
             ? v.ToString()
-            : "dev-crono-001";
+            : "dev-blikon-001";
 
     [HttpGet("folder")]
     public async Task<IActionResult> GetByFolder([FromQuery] string coreFolderId)
     {
         var files = await db.Files
-            .Where(f => f.BlikonId == CronoCode && f.CoreFolderId == coreFolderId && f.DeletedAt == null)
+            .Where(f => f.BlikonId == BlikonId && f.CoreFolderId == coreFolderId && f.DeletedAt == null)
             .OrderByDescending(f => f.CreatedAt)
             .Select(f => new
             {
@@ -47,13 +47,13 @@ public class FilesController(DriveDbContext db, IBlobStorageService storage, Fil
     [HttpPost("upload/init")]
     public async Task<IActionResult> InitUpload([FromBody] InitUploadRequest req)
     {
-        var crono    = CronoCode;
-        var blobPath = $"{crono}/{req.CoreFolderId}/{Guid.NewGuid()}/{req.FileName}";
+        var blikonId = BlikonId;
+        var blobPath = $"{blikonId}/{req.CoreFolderId}/{Guid.NewGuid()}/{req.FileName}";
 
         var file = new DriveFile
         {
             Id            = Guid.NewGuid(),
-            BlikonId      = crono,
+            BlikonId      = blikonId,
             CoreFolderId  = req.CoreFolderId,
             AzureBlobPath = blobPath,
             UploadStatus  = UploadStatus.Pending,
@@ -124,7 +124,7 @@ public class FilesController(DriveDbContext db, IBlobStorageService storage, Fil
         var lower = term.ToLower();
         var like  = $"%{lower}%";
 
-        var query = db.Files.Where(f => f.BlikonId == CronoCode && f.DeletedAt == null);
+        var query = db.Files.Where(f => f.BlikonId == BlikonId && f.DeletedAt == null);
 
         if (!string.IsNullOrWhiteSpace(coreFolderId))
             query = query.Where(f => f.CoreFolderId == coreFolderId);
@@ -173,7 +173,7 @@ public class FilesController(DriveDbContext db, IBlobStorageService storage, Fil
         var comment = new FileComment
         {
             Id = Guid.NewGuid(), FileId = id,
-            BlikonId = CronoCode, Body = req.Body
+            BlikonId = BlikonId, Body = req.Body
         };
         db.Comments.Add(comment);
         await db.SaveChangesAsync();
@@ -183,7 +183,7 @@ public class FilesController(DriveDbContext db, IBlobStorageService storage, Fil
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(Guid id)
     {
-        var file = await db.Files.FirstOrDefaultAsync(f => f.Id == id && f.BlikonId == CronoCode);
+        var file = await db.Files.FirstOrDefaultAsync(f => f.Id == id && f.BlikonId == BlikonId);
         if (file is null) return NotFound();
         file.DeletedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
@@ -196,7 +196,7 @@ public class FilesController(DriveDbContext db, IBlobStorageService storage, Fil
         if (req.Ids.Count == 0) return BadRequest();
         var now   = DateTime.UtcNow;
         var files = await db.Files
-            .Where(f => req.Ids.Contains(f.Id) && f.BlikonId == CronoCode)
+            .Where(f => req.Ids.Contains(f.Id) && f.BlikonId == BlikonId)
             .ToListAsync();
         foreach (var f in files) f.DeletedAt = now;
         await db.SaveChangesAsync();

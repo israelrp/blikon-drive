@@ -51,7 +51,7 @@ export function SetupView({
   }
 
   function handleSave() {
-    onSave({ apiUrl: API_URL, cronoCode: config.cronoCode, syncFolders: folders });
+    onSave({ apiUrl: API_URL, blikonId: config.blikonId, cronoCode: config.cronoCode, syncFolders: folders });
   }
 
   const canSave = folders.every((f) => f.localPath && f.coreFolderId.trim());

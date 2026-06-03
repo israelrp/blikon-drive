@@ -8,7 +8,7 @@ import { DriveHeader } from "@/components/DriveHeader";
 import { ensureFolder, DriveFolder } from "@/lib/api";
 
 interface UserInfo {
-  cronoCode: string; profileName: string; email: string; photo: string;
+  blikonId: string; cronoCode: string; profileName: string; email: string; photo: string;
 }
 
 // Reglas: minúsculas, letras, números y guiones. Empieza con letra o número.
@@ -61,7 +61,7 @@ export function HomeClient({
 
     setLoading(true);
     try {
-      const folder = await ensureFolder(name, userInfo.cronoCode);
+      const folder = await ensureFolder(name, userInfo.blikonId);
       setFolders((prev) => prev.some((f) => f.id === folder.id) ? prev : [folder, ...prev]);
       setCreating(false);
       setInput("");
