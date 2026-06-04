@@ -356,6 +356,14 @@ async fn open_login_window(app: AppHandle) -> Result<(), String> {
     Ok(())
 }
 
+/// Abre DevTools de la ventana de login para diagnóstico.
+#[tauri::command]
+fn open_login_devtools(app: AppHandle) {
+    if let Some(win) = app.get_webview_window("login") {
+        win.open_devtools();
+    }
+}
+
 /// Obtiene los folders raíz del usuario desde la API (sin CORS — llamada Rust nativa).
 #[tauri::command]
 async fn get_remote_folders(state: State<'_, AppState>) -> Result<Vec<String>, String> {
@@ -428,7 +436,7 @@ pub fn run() {
             trigger_sync, pause_sync, resume_sync,
             logout, clear_sync_entries,
             get_profile_with_cookies, receive_profile, open_login_window,
-            get_remote_folders,
+            get_remote_folders, open_login_devtools,
         ])
         .run(tauri::generate_context!())
         .expect("error running app");

@@ -13,6 +13,10 @@ export function LoginView() {
     }
   }
 
+  async function handleOpenDevtools() {
+    await invoke("open_login_devtools").catch(() => {});
+  }
+
   return (
     <div className="flex flex-col h-screen bg-[#f6f8fc] items-center justify-center gap-6 px-6">
       <div className="flex flex-col items-center gap-3">
@@ -44,6 +48,15 @@ export function LoginView() {
           </svg>
         )}
         Iniciar sesión con ValidaCel
+      </button>
+
+      {/* Botón de diagnóstico — abre DevTools de la ventana de login */}
+      <button
+        onClick={handleOpenDevtools}
+        className="text-xs text-[#c0c0c0] hover:text-[#888] mt-4"
+        title="Abrir diagnóstico de la ventana de login"
+      >
+        diagnóstico
       </button>
     </div>
   );
