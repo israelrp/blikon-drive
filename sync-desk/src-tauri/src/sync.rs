@@ -178,29 +178,33 @@ pub async fn run_sync(
         let files = collect_files_recursive(&app, &root_path, &folder.core_folder_id, 0, &mut count);
         slog(&app, format!("{} archivo(s) encontrado(s) en '{}'", files.len(), folder.core_folder_id));
 
-        // 2. Filtrar los que faltan por subir
-        let pending: Vec<_> = files.into_iter().filter(|(p, _)| {
-            let c = conn.lock().unwrap();
-            !db::entry_exists_synced(&c, &p.to_string_lossy())
-        }).collect();
-        slog(&app, format!("{} archivo(s) pendiente(s) por subir", pending.len()));
+        // 2. Filtrar los que faltan por subir — cargamos todos los paths sincronizados
+        //    una sola vez y filtramos en memoria (rápido con cientos de miles).
+        let synced = { db::synced_paths(&conn.lock().unwrap()) };
+        let pending: Vec<_> = files.into_iter()
+            .filter(|(p, _)| !synced.contains(p.to_string_lossy().as_ref()))
+            .collect();
+        let total = pending.len();
+        slog(&app, format!("{} archivo(s) pendiente(s) por subir", total));
 
-        // 3. Asegurar (una vez) cada folder único que tiene archivos pendientes.
-        //    El API crea toda la cadena de padres, así que basta con el folder hoja.
+        // 3. Subir: aseguramos cada folder de forma LAZY justo antes de su primer
+        //    archivo (el API crea la cadena de padres). Así el upload empieza de
+        //    inmediato sin esperar a asegurar miles de folders primero.
         let mut ensured = std::collections::HashSet::new();
-        for (_, fid) in &pending {
-            if ensured.insert(fid.clone()) {
-                ensure_folder(&client, &config.api_url, &config.blikon_id, fid).await;
-            }
-        }
-        if !ensured.is_empty() {
-            slog(&app, format!("{} folder(s) asegurado(s) en Drive", ensured.len()));
-        }
+        let mut done = 0usize;
 
-        let files = pending;
-
-        for (file_path, core_folder_id) in files {
+        for (file_path, core_folder_id) in pending {
             if state.lock().unwrap().paused { return; }
+
+            // Asegurar el folder de este archivo (una sola vez)
+            if ensured.insert(core_folder_id.clone()) {
+                ensure_folder(&client, &config.api_url, &config.blikon_id, &core_folder_id).await;
+            }
+
+            done += 1;
+            if done % 100 == 0 || done == 1 {
+                slog(&app, format!("subiendo {} de {}", done, total));
+            }
 
             let file_name  = file_path.file_name().unwrap().to_string_lossy().to_string();
             let size_bytes = file_path.metadata().map(|m| m.len() as i64).unwrap_or(0);

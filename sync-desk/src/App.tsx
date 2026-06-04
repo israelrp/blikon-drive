@@ -52,12 +52,15 @@ export default function App() {
       console.log("[Sync]", e.payload);
     });
 
-    // Actualizaciones de sync en tiempo real
+    // Actualizaciones de sync en tiempo real.
+    // Capeamos a 200 entradas — con folders enormes (cientos de miles de archivos)
+    // un array sin límite congela el browser.
+    const MAX_ENTRIES = 200;
     const unlistenEntry = listen<SyncEntry>("sync_entry_updated", (e) => {
       setEntries((prev) => {
         const idx = prev.findIndex((x) => x.id === e.payload.id);
         if (idx >= 0) { const next = [...prev]; next[idx] = e.payload; return next; }
-        return [e.payload, ...prev];
+        return [e.payload, ...prev].slice(0, MAX_ENTRIES);
       });
     });
 

@@ -24,6 +24,9 @@ pub fn open(data_dir: &std::path::Path) -> Result<Connection> {
             error          TEXT,
             updated_at     TEXT NOT NULL
         );
+
+        -- Índice para entry_exists_synced — crítico con cientos de miles de archivos
+        CREATE INDEX IF NOT EXISTS idx_sync_entries_path ON sync_entries(local_path);
     ")?;
     Ok(conn)
 }
@@ -94,4 +97,17 @@ pub fn entry_exists_synced(conn: &Connection, local_path: &str) -> bool {
         params![local_path],
         |_| Ok(true),
     ).unwrap_or(false)
+}
+
+/// Carga TODOS los paths ya sincronizados en un HashSet — una sola query.
+/// Filtrar en memoria es muchísimo más rápido que una query por archivo
+/// cuando hay cientos de miles de archivos.
+pub fn synced_paths(conn: &Connection) -> std::collections::HashSet<String> {
+    let mut set = std::collections::HashSet::new();
+    if let Ok(mut stmt) = conn.prepare("SELECT local_path FROM sync_entries WHERE status = 'synced'") {
+        if let Ok(rows) = stmt.query_map([], |row| row.get::<_, String>(0)) {
+            for p in rows.flatten() { set.insert(p); }
+        }
+    }
+    set
 }
