@@ -92,9 +92,33 @@ const AUTH_BRIDGE_SCRIPT: &str = r#"
     if (!isSuccessPage()) return;
     signaled = true;
     showBanner('Conectando con Blikon Sync…', '#1a73e8');
-    console.log('[BS] navegando a API para obtener perfil (sin CORS)');
-    // Navegación directa — el browser envía cookies de .com.blog sin restricciones CORS
-    window.location.href = PROFILE_URL;
+
+    // Llamar a nuestro propio API intermediario que maneja el refresh automático.
+    // CORS ya está configurado en api-blikondrive.com.blog.
+    // Las cookies .com.blog se envían automáticamente al ser same-site.
+    fetch('https://api-blikondrive.com.blog/api/auth/me', { credentials: 'include' })
+      .then(function(r) {
+        console.log('[BS] /api/auth/me status=' + r.status);
+        if (!r.ok) throw new Error('status ' + r.status);
+        return r.json();
+      })
+      .then(function(p) {
+        console.log('[BS] perfil via API intermediario, blikonId=' + p.blikonId + ' cronoCode=' + p.cronoCode);
+        var profile = {
+          blikonId:    p.blikonId    || p.blikon_id    || '',
+          cronoCode:   p.cronoCode   || p.crono_code   || '',
+          profileName: p.profileName || p.profile_name || ((p.firstName || p.first_name || '') + ' ' + (p.lastName || p.last_name || '')).trim(),
+          email:       p.email       || '',
+          photo:       p.photo       || '',
+          firstName:   p.firstName   || p.first_name   || '',
+          lastName:    p.lastName    || p.last_name    || ''
+        };
+        window.location.href = 'tauri-auth://profile?d=' + encodeURIComponent(JSON.stringify(profile));
+      })
+      .catch(function(err) {
+        console.warn('[BS] API intermediario falló (' + err + '), fallback macOS');
+        window.location.href = PROFILE_URL;
+      });
   }
 
   function setup() {
