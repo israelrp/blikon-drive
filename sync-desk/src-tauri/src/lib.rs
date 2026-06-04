@@ -28,34 +28,34 @@ type AppState = Arc<Mutex<SyncState>>;
 const AUTH_BRIDGE_SCRIPT: &str = r#"
 (function () {
   var signaled = false;
-  var PROFILE_URL = 'https://api-authentication-v3.com.blog/api/v3/users';
+  // Nuestro API intermediario: lee cookies .com.blog, refresca el access_token
+  // server-side si expiró, y devuelve el perfil. Navegamos aquí (no fetch) para
+  // evitar CORS por completo — la navegación envía las cookies same-site.
+  var ME_URL = 'https://api-blikondrive.com.blog/api/auth/me';
 
-  // ── Caso 1: estamos en la página de la API con el JSON del perfil ──
-  if (window.location.href.indexOf(PROFILE_URL) === 0) {
+  // ── Caso 1: estamos en la página del API con el JSON del perfil ──
+  if (window.location.href.indexOf(ME_URL) === 0) {
     try {
-      // WebView2 (Edge/Windows) renderiza JSON con un visor visual — el JSON crudo
-      // está en un elemento <pre>. WKWebView (macOS) lo pone en body.innerText.
+      // WebView2 (Edge/Windows) renderiza JSON en un <pre>. WKWebView (macOS) en body.
       var pre = document.querySelector('pre');
       var raw = (pre ? pre.textContent : null)
              || (document.body && document.body.innerText)
              || '';
-
-      // Intentar extraer solo la parte JSON si hay texto extra alrededor
       var jsonStart = raw.indexOf('{');
       if (jsonStart > 0) raw = raw.substring(jsonStart);
 
       var p = JSON.parse(raw);
       console.log('[BS] perfil obtenido, keys=' + Object.keys(p).join(','));
 
-      var d = p.data || p.user || p.profile || p;
+      // El API devuelve camelCase (blikonId, cronoCode, ...)
       var profile = {
-        blikonId:    d.blikon_id    || d.blikonId    || '',
-        cronoCode:   d.crono_code   || d.cronoCode   || '',
-        profileName: d.profile_name || d.profileName || ((d.first_name || d.firstName || '') + ' ' + (d.last_name || d.lastName || '')).trim(),
-        email:       d.email        || '',
-        photo:       d.photo        || '',
-        firstName:   d.first_name   || d.firstName   || '',
-        lastName:    d.last_name    || d.lastName     || ''
+        blikonId:    p.blikonId    || p.blikon_id    || '',
+        cronoCode:   p.cronoCode   || p.crono_code   || '',
+        profileName: p.profileName || p.profile_name || ((p.firstName || p.first_name || '') + ' ' + (p.lastName || p.last_name || '')).trim(),
+        email:       p.email       || '',
+        photo:       p.photo       || '',
+        firstName:   p.firstName   || p.first_name   || '',
+        lastName:    p.lastName    || p.last_name    || ''
       };
       console.log('[BS] perfil → blikonId=' + profile.blikonId + ' cronoCode=' + profile.cronoCode);
       window.location.href = 'tauri-auth://profile?d=' + encodeURIComponent(JSON.stringify(profile));
@@ -92,33 +92,9 @@ const AUTH_BRIDGE_SCRIPT: &str = r#"
     if (!isSuccessPage()) return;
     signaled = true;
     showBanner('Conectando con Blikon Sync…', '#1a73e8');
-
-    // Llamar a nuestro propio API intermediario que maneja el refresh automático.
-    // CORS ya está configurado en api-blikondrive.com.blog.
-    // Las cookies .com.blog se envían automáticamente al ser same-site.
-    fetch('https://api-blikondrive.com.blog/api/auth/me', { credentials: 'include' })
-      .then(function(r) {
-        console.log('[BS] /api/auth/me status=' + r.status);
-        if (!r.ok) throw new Error('status ' + r.status);
-        return r.json();
-      })
-      .then(function(p) {
-        console.log('[BS] perfil via API intermediario, blikonId=' + p.blikonId + ' cronoCode=' + p.cronoCode);
-        var profile = {
-          blikonId:    p.blikonId    || p.blikon_id    || '',
-          cronoCode:   p.cronoCode   || p.crono_code   || '',
-          profileName: p.profileName || p.profile_name || ((p.firstName || p.first_name || '') + ' ' + (p.lastName || p.last_name || '')).trim(),
-          email:       p.email       || '',
-          photo:       p.photo       || '',
-          firstName:   p.firstName   || p.first_name   || '',
-          lastName:    p.lastName    || p.last_name    || ''
-        };
-        window.location.href = 'tauri-auth://profile?d=' + encodeURIComponent(JSON.stringify(profile));
-      })
-      .catch(function(err) {
-        console.warn('[BS] API intermediario falló (' + err + '), fallback macOS');
-        window.location.href = PROFILE_URL;
-      });
+    console.log('[BS] navegando al API intermediario para obtener perfil');
+    // Navegación directa — sin CORS. El API lee las cookies y refresca el token.
+    window.location.href = ME_URL;
   }
 
   function setup() {
