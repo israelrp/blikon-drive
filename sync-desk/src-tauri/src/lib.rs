@@ -33,18 +33,29 @@ const AUTH_BRIDGE_SCRIPT: &str = r#"
   // ── Caso 1: estamos en la página de la API con el JSON del perfil ──
   if (window.location.href.indexOf(PROFILE_URL) === 0) {
     try {
-      var raw  = document.body && document.body.innerText;
-      var p    = JSON.parse(raw);
-      console.log('[BS] leyendo perfil desde página API, keys=' + Object.keys(p).join(','));
+      // WebView2 (Edge/Windows) renderiza JSON con un visor visual — el JSON crudo
+      // está en un elemento <pre>. WKWebView (macOS) lo pone en body.innerText.
+      var pre = document.querySelector('pre');
+      var raw = (pre ? pre.textContent : null)
+             || (document.body && document.body.innerText)
+             || '';
 
+      // Intentar extraer solo la parte JSON si hay texto extra alrededor
+      var jsonStart = raw.indexOf('{');
+      if (jsonStart > 0) raw = raw.substring(jsonStart);
+
+      var p = JSON.parse(raw);
+      console.log('[BS] perfil obtenido, keys=' + Object.keys(p).join(','));
+
+      var d = p.data || p.user || p.profile || p;
       var profile = {
-        blikonId:    p.blikon_id    || p.blikonId    || '',
-        cronoCode:   p.crono_code   || p.cronoCode   || '',
-        profileName: p.profile_name || p.profileName || ((p.first_name || p.firstName || '') + ' ' + (p.last_name || p.lastName || '')).trim(),
-        email:       p.email        || '',
-        photo:       p.photo        || '',
-        firstName:   p.first_name   || p.firstName   || '',
-        lastName:    p.last_name    || p.lastName     || ''
+        blikonId:    d.blikon_id    || d.blikonId    || '',
+        cronoCode:   d.crono_code   || d.cronoCode   || '',
+        profileName: d.profile_name || d.profileName || ((d.first_name || d.firstName || '') + ' ' + (d.last_name || d.lastName || '')).trim(),
+        email:       d.email        || '',
+        photo:       d.photo        || '',
+        firstName:   d.first_name   || d.firstName   || '',
+        lastName:    d.last_name    || d.lastName     || ''
       };
       console.log('[BS] perfil → blikonId=' + profile.blikonId + ' cronoCode=' + profile.cronoCode);
       window.location.href = 'tauri-auth://profile?d=' + encodeURIComponent(JSON.stringify(profile));
