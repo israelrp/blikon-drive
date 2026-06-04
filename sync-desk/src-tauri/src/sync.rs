@@ -21,6 +21,17 @@ fn slog(app: &AppHandle, msg: impl Into<String>) {
     app.emit("sync_log", &m).ok();
 }
 
+/// Resetea `syncing=false` al salir de run_sync, SIEMPRE (incluso en panic o
+/// return temprano). Evita que un sync atascado bloquee todos los futuros.
+struct SyncGuard(Arc<Mutex<SyncState>>);
+impl Drop for SyncGuard {
+    fn drop(&mut self) {
+        if let Ok(mut s) = self.0.lock() {
+            s.syncing = false;
+        }
+    }
+}
+
 /// Llama a /api/folders/ensure para crear el folder y toda su cadena de padres.
 /// Timeout corto para no colgar el sync si un POST se traba.
 async fn ensure_folder(client: &Client, api_url: &str, blikon_id: &str, path: &str) {
@@ -64,13 +75,20 @@ fn is_ignored_dir(name: &str) -> bool {
 
 /// Recopila recursivamente todos los archivos bajo `dir` — SOLO filesystem, sin red.
 /// Devuelve vec de (ruta_absoluta_archivo, core_folder_id).
-/// Las subcarpetas se mapean como "{base_folder_id}/{slug(subcarpeta)}".
+/// NO sigue symlinks/junctions (evita loops infinitos en discos de respaldo Windows).
+/// Límite de profundidad 40 como salvaguarda extra.
 fn collect_files_recursive(
     app:            &AppHandle,
     dir:            &PathBuf,
     base_folder_id: &str,
+    depth:          u32,
+    count:          &mut usize,
 ) -> Vec<(PathBuf, String)> {
     let mut result = Vec::new();
+    if depth > 40 {
+        slog(app, format!("profundidad máxima en {:?}, omitido", dir));
+        return result;
+    }
 
     let entries = match std::fs::read_dir(dir) {
         Ok(e) => e,
@@ -81,18 +99,29 @@ fn collect_files_recursive(
     };
 
     for entry in entries.flatten() {
+        // file_type() NO sigue symlinks — clave para no entrar en junctions de Windows
+        let ft = match entry.file_type() {
+            Ok(ft) => ft,
+            Err(_) => continue,
+        };
+        if ft.is_symlink() { continue; }
+
         let path = entry.path();
 
-        if path.is_file() {
+        if ft.is_file() {
             result.push((path, base_folder_id.to_string()));
-        } else if path.is_dir() {
+            *count += 1;
+            if *count % 500 == 0 {
+                slog(app, format!("… {} archivos recorridos", count));
+            }
+        } else if ft.is_dir() {
             let name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
             if is_ignored_dir(&name) { continue; }
             let slug = slug_segment(&name);
             if slug.is_empty() { continue; }
             let sub_folder_id = format!("{}/{}", base_folder_id, slug);
 
-            let mut sub = collect_files_recursive(app, &path, &sub_folder_id);
+            let mut sub = collect_files_recursive(app, &path, &sub_folder_id, depth + 1, count);
             result.append(&mut sub);
         }
     }
@@ -114,13 +143,14 @@ pub async fn run_sync(
         }
         s.syncing = true;
     }
+    // Garantiza syncing=false al salir, pase lo que pase.
+    let _guard = SyncGuard(Arc::clone(&state));
 
     let config = { state.lock().unwrap().config.clone() };
     slog(&app, format!("run_sync: {} folder(s), api={}, blikonId={}",
         config.sync_folders.len(), config.api_url, config.blikon_id));
     if config.sync_folders.is_empty() {
         slog(&app, "sin folders configurados — nada que sincronizar");
-        state.lock().unwrap().syncing = false;
         return;
     }
 
@@ -143,8 +173,9 @@ pub async fn run_sync(
 
         slog(&app, format!("sincronizando '{}' ← {:?}", folder.core_folder_id, root_path));
 
-        // 1. Recorrido rápido del filesystem (sin red)
-        let files = collect_files_recursive(&app, &root_path, &folder.core_folder_id);
+        // 1. Recorrido rápido del filesystem (sin red, sin symlinks)
+        let mut count = 0usize;
+        let files = collect_files_recursive(&app, &root_path, &folder.core_folder_id, 0, &mut count);
         slog(&app, format!("{} archivo(s) encontrado(s) en '{}'", files.len(), folder.core_folder_id));
 
         // 2. Filtrar los que faltan por subir
@@ -169,10 +200,7 @@ pub async fn run_sync(
         let files = pending;
 
         for (file_path, core_folder_id) in files {
-            if state.lock().unwrap().paused {
-                state.lock().unwrap().syncing = false;
-                return;
-            }
+            if state.lock().unwrap().paused { return; }
 
             let file_name  = file_path.file_name().unwrap().to_string_lossy().to_string();
             let size_bytes = file_path.metadata().map(|m| m.len() as i64).unwrap_or(0);
@@ -245,8 +273,8 @@ pub async fn run_sync(
         }
     }
 
-    state.lock().unwrap().syncing = false;
     slog(&app, "sync completado");
+    // _guard se dropea aquí → syncing = false
 }
 
 pub fn start_watcher(
