@@ -1,1 +1,1 @@
-{"default":{"identifier":"default","description":"Capability por defecto para Blikon Sync","local":true,"windows":["main","login","auth_check"],"permissions":["core:default","dialog:default","fs:default","shell:default"]}}
+{"default":{"identifier":"default","description":"Capability por defecto para Blikon Sync","local":true,"windows":["main","login","auth_check","profile_check"],"permissions":["core:default","dialog:default","fs:default","shell:default"]}}
