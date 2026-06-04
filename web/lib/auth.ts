@@ -1,4 +1,4 @@
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 
 const API     = process.env.API_URL ?? "http://localhost:5086";
 const IS_DEV  = process.env.NODE_ENV === "development";
@@ -36,12 +36,40 @@ const DEV_PROFILE: UserProfile = {
  *
  * Prod: lee cookie `access_token` y valida con la API .NET.
  */
+function mapProfile(data: Record<string, unknown>): UserProfile {
+  const s = (v: unknown) => (typeof v === "string" ? v : "");
+  return {
+    blikonId:    s(data.blikonId),
+    profileName: s(data.profileName) || `${s(data.firstName)} ${s(data.lastName)}`.trim(),
+    email:       s(data.email),
+    photo:       s(data.photo),
+    firstName:   s(data.firstName),
+    lastName:    s(data.lastName),
+    cronoCode:   s(data.cronoCode),
+    phoneNumber: s(data.phoneNumber),
+  };
+}
+
 export async function getSession(): Promise<UserProfile | null> {
+  // El middleware ya validó la sesión (con cache de cookie) y reenvía el perfil
+  // en el header x-blikon-profile. Aquí solo lo leemos — sin red, instantáneo.
+  const hdrs = await headers();
+  const fromMiddleware = hdrs.get("x-blikon-profile");
+  if (fromMiddleware) {
+    try { return mapProfile(JSON.parse(fromMiddleware)); } catch { /* fallback abajo */ }
+  }
+
+  // Fallback (si el header no llegó, p.ej. ruta sin middleware)
   const cookieStore = await cookies();
 
   if (IS_DEV) {
     const devSession = cookieStore.get(DEV_COOKIE)?.value;
     return devSession === "1" ? DEV_PROFILE : null;
+  }
+
+  const cached = cookieStore.get("blikon_profile")?.value;
+  if (cached) {
+    try { return mapProfile(JSON.parse(cached)); } catch { /* sigue */ }
   }
 
   const accessToken = cookieStore.get("access_token")?.value;
@@ -55,18 +83,7 @@ export async function getSession(): Promise<UserProfile | null> {
       cache:   "no-store",
     });
     if (!res.ok) return null;
-
-    const data = await res.json();
-    return {
-      blikonId:    data.blikonId    ?? "",
-      profileName: data.profileName ?? `${data.firstName ?? ""} ${data.lastName ?? ""}`.trim(),
-      email:       data.email       ?? "",
-      photo:       data.photo       ?? "",
-      firstName:   data.firstName   ?? "",
-      lastName:    data.lastName    ?? "",
-      cronoCode:   data.cronoCode   ?? "",
-      phoneNumber: data.phoneNumber ?? "",
-    };
+    return mapProfile(await res.json());
   } catch {
     return null;
   }

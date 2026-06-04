@@ -7,6 +7,9 @@ export async function POST(request: Request) {
   const returnUrl = new URL("/login", request.url).toString();
   const res       = NextResponse.redirect(returnUrl);
 
+  // Borrar el cache del perfil siempre
+  res.cookies.set("blikon_profile", "", { path: "/", maxAge: 0 });
+
   if (IS_DEV) {
     // Borrar cookie de sesión dev
     res.cookies.set(DEV_COOKIE, "", { path: "/", maxAge: 0 });
