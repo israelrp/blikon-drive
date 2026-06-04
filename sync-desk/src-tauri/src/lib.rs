@@ -35,33 +35,62 @@ const AUTH_BRIDGE_SCRIPT: &str = r#"
 
   // ── Caso 1: estamos en la página del API con el JSON del perfil ──
   if (window.location.href.indexOf(ME_URL) === 0) {
-    try {
+    var parsed = false;
+
+    function tryParseProfile() {
+      if (parsed) return;
       // WebView2 (Edge/Windows) renderiza JSON en un <pre>. WKWebView (macOS) en body.
       var pre = document.querySelector('pre');
       var raw = (pre ? pre.textContent : null)
              || (document.body && document.body.innerText)
              || '';
       var jsonStart = raw.indexOf('{');
-      if (jsonStart > 0) raw = raw.substring(jsonStart);
+      var jsonEnd   = raw.lastIndexOf('}');
+      if (jsonStart < 0 || jsonEnd <= jsonStart) {
+        // El JSON aún no está en el DOM — reintentamos luego
+        return;
+      }
+      raw = raw.substring(jsonStart, jsonEnd + 1);
 
-      var p = JSON.parse(raw);
-      console.log('[BS] perfil obtenido, keys=' + Object.keys(p).join(','));
+      try {
+        var p = JSON.parse(raw);
+        parsed = true;
+        console.log('[BS] perfil obtenido, keys=' + Object.keys(p).join(','));
 
-      // El API devuelve camelCase (blikonId, cronoCode, ...)
-      var profile = {
-        blikonId:    p.blikonId    || p.blikon_id    || '',
-        cronoCode:   p.cronoCode   || p.crono_code   || '',
-        profileName: p.profileName || p.profile_name || ((p.firstName || p.first_name || '') + ' ' + (p.lastName || p.last_name || '')).trim(),
-        email:       p.email       || '',
-        photo:       p.photo       || '',
-        firstName:   p.firstName   || p.first_name   || '',
-        lastName:    p.lastName    || p.last_name    || ''
-      };
-      console.log('[BS] perfil → blikonId=' + profile.blikonId + ' cronoCode=' + profile.cronoCode);
-      window.location.href = 'tauri-auth://profile?d=' + encodeURIComponent(JSON.stringify(profile));
-    } catch(e) {
-      console.warn('[BS] error parseando perfil:', e);
-      window.location.href = 'tauri-auth://get-profile';
+        // El API devuelve camelCase (blikonId, cronoCode, ...)
+        var profile = {
+          blikonId:    p.blikonId    || p.blikon_id    || '',
+          cronoCode:   p.cronoCode   || p.crono_code   || '',
+          profileName: p.profileName || p.profile_name || ((p.firstName || p.first_name || '') + ' ' + (p.lastName || p.last_name || '')).trim(),
+          email:       p.email       || '',
+          photo:       p.photo       || '',
+          firstName:   p.firstName   || p.first_name   || '',
+          lastName:    p.lastName    || p.last_name    || ''
+        };
+        console.log('[BS] perfil → blikonId=' + profile.blikonId + ' cronoCode=' + profile.cronoCode);
+        window.location.href = 'tauri-auth://profile?d=' + encodeURIComponent(JSON.stringify(profile));
+      } catch(e) {
+        console.warn('[BS] JSON incompleto, reintentando:', e);
+      }
+    }
+
+    // El script se inyecta antes de que el DOM esté listo — esperamos al contenido
+    function waitForProfile(attempts) {
+      if (parsed) return;
+      tryParseProfile();
+      if (!parsed && attempts < 30) {
+        setTimeout(function() { waitForProfile(attempts + 1); }, 100);
+      } else if (!parsed) {
+        console.warn('[BS] timeout esperando JSON, fallback macOS');
+        window.location.href = 'tauri-auth://get-profile';
+      }
+    }
+
+    if (document.readyState === 'complete' || document.readyState === 'interactive') {
+      waitForProfile(0);
+    } else {
+      document.addEventListener('DOMContentLoaded', function() { waitForProfile(0); });
+      window.addEventListener('load', function() { waitForProfile(0); });
     }
     return;
   }
