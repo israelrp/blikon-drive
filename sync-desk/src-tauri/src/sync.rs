@@ -166,8 +166,10 @@ pub async fn run_sync(
         .unwrap();
 
     // Procesamos en lotes de BATCH archivos por pasada para acotar memoria.
-    // Si un lote se llena, re-disparamos run_sync al final hasta vaciar todo.
+    // El loop externo repite mientras algún folder llene su lote (quedan más).
     const BATCH: usize = 3000;
+
+    loop {
     let mut batch_full = false;
 
     for folder in &config.sync_folders {
@@ -294,16 +296,13 @@ pub async fn run_sync(
         }
     }
 
-    // Si algún folder llenó el lote, quedan más archivos → re-disparar otra pasada.
-    if batch_full && !state.lock().unwrap().paused {
-        slog(&app, "lote completo, continuando con el siguiente…");
-        drop(_guard);   // libera syncing antes de re-lanzar
-        let app2 = app.clone();
-        let s2 = Arc::clone(&state);
-        let c2 = Arc::clone(&conn);
-        async_runtime::spawn(async move { Box::pin(run_sync(app2, s2, c2)).await; });
-        return;
+    // Si ningún folder llenó el lote (o pausa), terminamos. Si alguno lo llenó,
+    // repetimos: la siguiente pasada salta los recién sincronizados y toma los demás.
+    if !batch_full || state.lock().unwrap().paused {
+        break;
     }
+    slog(&app, "lote completo, continuando con el siguiente…");
+    } // fin loop
 
     slog(&app, "sync completado");
     // _guard se dropea aquí → syncing = false
