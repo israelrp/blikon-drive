@@ -73,32 +73,38 @@ fn is_ignored_dir(name: &str) -> bool {
     ) || name.starts_with('.')   // .git, .svn, .cache, .DS_Store, etc.
 }
 
-/// Recopila recursivamente todos los archivos bajo `dir` — SOLO filesystem, sin red.
-/// Devuelve vec de (ruta_absoluta_archivo, core_folder_id).
-/// NO sigue symlinks/junctions (evita loops infinitos en discos de respaldo Windows).
-/// Límite de profundidad 40 como salvaguarda extra.
+/// Recorre `dir` acumulando en `out` SOLO archivos NO sincronizados, hasta `cap`.
+/// SOLO filesystem (sin red). NO sigue symlinks/junctions. Profundidad máx 40.
+/// Saltar los ya sincronizados durante el recorrido acota memoria y permite
+/// procesar folders enormes (cientos de miles de archivos) en lotes.
+#[allow(clippy::too_many_arguments)]
 fn collect_files_recursive(
     app:            &AppHandle,
     dir:            &PathBuf,
     base_folder_id: &str,
     depth:          u32,
-    count:          &mut usize,
-) -> Vec<(PathBuf, String)> {
-    let mut result = Vec::new();
+    synced:         &std::collections::HashSet<String>,
+    out:            &mut Vec<(PathBuf, String)>,
+    scanned:        &mut usize,
+    cap:            usize,
+) {
+    if out.len() >= cap { return; }
     if depth > 40 {
         slog(app, format!("profundidad máxima en {:?}, omitido", dir));
-        return result;
+        return;
     }
 
     let entries = match std::fs::read_dir(dir) {
         Ok(e) => e,
         Err(e) => {
             slog(app, format!("no se pudo leer {:?}: {}", dir, e));
-            return result;
+            return;
         }
     };
 
     for entry in entries.flatten() {
+        if out.len() >= cap { return; }
+
         // file_type() NO sigue symlinks — clave para no entrar en junctions de Windows
         let ft = match entry.file_type() {
             Ok(ft) => ft,
@@ -109,10 +115,13 @@ fn collect_files_recursive(
         let path = entry.path();
 
         if ft.is_file() {
-            result.push((path, base_folder_id.to_string()));
-            *count += 1;
-            if *count % 500 == 0 {
-                slog(app, format!("… {} archivos recorridos", count));
+            *scanned += 1;
+            if *scanned % 5000 == 0 {
+                slog(app, format!("… {} archivos revisados, {} por subir en este lote", scanned, out.len()));
+            }
+            // Saltar los ya sincronizados — no los cargamos a memoria
+            if !synced.contains(path.to_string_lossy().as_ref()) {
+                out.push((path, base_folder_id.to_string()));
             }
         } else if ft.is_dir() {
             let name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
@@ -121,12 +130,9 @@ fn collect_files_recursive(
             if slug.is_empty() { continue; }
             let sub_folder_id = format!("{}/{}", base_folder_id, slug);
 
-            let mut sub = collect_files_recursive(app, &path, &sub_folder_id, depth + 1, count);
-            result.append(&mut sub);
+            collect_files_recursive(app, &path, &sub_folder_id, depth + 1, synced, out, scanned, cap);
         }
     }
-
-    result
 }
 
 pub async fn run_sync(
@@ -159,6 +165,11 @@ pub async fn run_sync(
         .build()
         .unwrap();
 
+    // Procesamos en lotes de BATCH archivos por pasada para acotar memoria.
+    // Si un lote se llena, re-disparamos run_sync al final hasta vaciar todo.
+    const BATCH: usize = 3000;
+    let mut batch_full = false;
+
     for folder in &config.sync_folders {
         if !folder.enabled {
             slog(&app, format!("folder '{}' deshabilitado, omitido", folder.core_folder_id));
@@ -173,37 +184,43 @@ pub async fn run_sync(
 
         slog(&app, format!("sincronizando '{}' ← {:?}", folder.core_folder_id, root_path));
 
-        // 1. Recorrido rápido del filesystem (sin red, sin symlinks)
-        let mut count = 0usize;
-        let files = collect_files_recursive(&app, &root_path, &folder.core_folder_id, 0, &mut count);
-        slog(&app, format!("{} archivo(s) encontrado(s) en '{}'", files.len(), folder.core_folder_id));
-
-        // 2. Filtrar los que faltan por subir — cargamos todos los paths sincronizados
-        //    una sola vez y filtramos en memoria (rápido con cientos de miles).
+        // Cargar paths ya sincronizados (una query) para saltarlos en el recorrido.
         let synced = { db::synced_paths(&conn.lock().unwrap()) };
-        let pending: Vec<_> = files.into_iter()
-            .filter(|(p, _)| !synced.contains(p.to_string_lossy().as_ref()))
-            .collect();
-        let total = pending.len();
-        slog(&app, format!("{} archivo(s) pendiente(s) por subir", total));
 
-        // 3. Subir: aseguramos cada folder de forma LAZY justo antes de su primer
+        // 1. Recorrido: acumula SOLO no-sincronizados, hasta BATCH (acota memoria
+        //    y permite procesar folders con cientos de miles de archivos por lotes).
+        let mut pending: Vec<(PathBuf, String)> = Vec::new();
+        let mut scanned = 0usize;
+        collect_files_recursive(
+            &app, &root_path, &folder.core_folder_id, 0,
+            &synced, &mut pending, &mut scanned, BATCH,
+        );
+        let total = pending.len();
+        if total >= BATCH { batch_full = true; }
+        slog(&app, format!("{} archivo(s) por subir en este lote (de {} revisados)", total, scanned));
+
+        // 2. Subir: aseguramos cada folder de forma LAZY justo antes de su primer
         //    archivo (el API crea la cadena de padres). Así el upload empieza de
         //    inmediato sin esperar a asegurar miles de folders primero.
         let mut ensured = std::collections::HashSet::new();
         let mut done = 0usize;
+        if total > 0 { slog(&app, "iniciando subida de archivos…"); }
 
         for (file_path, core_folder_id) in pending {
-            if state.lock().unwrap().paused { return; }
-
-            // Asegurar el folder de este archivo (una sola vez)
-            if ensured.insert(core_folder_id.clone()) {
-                ensure_folder(&client, &config.api_url, &config.blikon_id, &core_folder_id).await;
+            if state.lock().unwrap().paused {
+                slog(&app, "sync pausado");
+                return;
             }
 
             done += 1;
-            if done % 100 == 0 || done == 1 {
+            if done == 1 || done % 100 == 0 {
                 slog(&app, format!("subiendo {} de {}", done, total));
+            }
+
+            // Asegurar el folder de este archivo (una sola vez)
+            if ensured.insert(core_folder_id.clone()) {
+                slog(&app, format!("asegurando folder '{}'", core_folder_id));
+                ensure_folder(&client, &config.api_url, &config.blikon_id, &core_folder_id).await;
             }
 
             let file_name  = file_path.file_name().unwrap().to_string_lossy().to_string();
@@ -275,6 +292,17 @@ pub async fn run_sync(
             { db::upsert_entry(&conn.lock().unwrap(), &final_entry).ok(); }
             app.emit("sync_entry_updated", &final_entry).ok();
         }
+    }
+
+    // Si algún folder llenó el lote, quedan más archivos → re-disparar otra pasada.
+    if batch_full && !state.lock().unwrap().paused {
+        slog(&app, "lote completo, continuando con el siguiente…");
+        drop(_guard);   // libera syncing antes de re-lanzar
+        let app2 = app.clone();
+        let s2 = Arc::clone(&state);
+        let c2 = Arc::clone(&conn);
+        async_runtime::spawn(async move { Box::pin(run_sync(app2, s2, c2)).await; });
+        return;
     }
 
     slog(&app, "sync completado");
