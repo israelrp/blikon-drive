@@ -1,4 +1,3 @@
-import { getFilesByFolder, getFolderChildren, getFolderBreadcrumb, ensureFolder } from "@/lib/api";
 import { requireSession } from "@/lib/auth";
 import { FolderClient } from "./FolderClient";
 
@@ -10,23 +9,9 @@ export default async function FolderPage({
   const { folderId } = await params;
   const decodedId = folderId.map(decodeURIComponent).join("/");
 
+  // Solo resolvemos la sesión (rápido). Los datos del folder se cargan
+  // client-side para que la navegación sea instantánea.
   const session = await requireSession();
 
-  await ensureFolder(decodedId, session.blikonId).catch(() => null);
-
-  const [files, subfolders, breadcrumb] = await Promise.all([
-    getFilesByFolder(decodedId, session.blikonId),
-    getFolderChildren(decodedId, session.blikonId),
-    getFolderBreadcrumb(decodedId, session.blikonId),
-  ]);
-
-  return (
-    <FolderClient
-      folderId={decodedId}
-      initialFiles={files}
-      initialSubfolders={subfolders}
-      breadcrumb={breadcrumb}
-      userInfo={session}
-    />
-  );
+  return <FolderClient folderId={decodedId} userInfo={session} />;
 }

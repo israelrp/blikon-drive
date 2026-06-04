@@ -8,7 +8,7 @@ import { FileTableView } from "@/components/FileTableView";
 import { FolderCard } from "@/components/FolderCard";
 import { DropZone } from "@/components/DropZone";
 import {
-  getFilesByFolder, getFolderChildren,
+  getFilesByFolder, getFolderChildren, getFolderBreadcrumb, ensureFolder,
   batchDeleteFiles, batchDeleteFolders,
   DriveFile, DriveFolder,
 } from "@/lib/api";
@@ -20,19 +20,15 @@ interface UserInfo {
 
 export function FolderClient({
   folderId,
-  initialFiles,
-  initialSubfolders,
-  breadcrumb,
   userInfo,
 }: {
-  folderId:          string;
-  initialFiles:      DriveFile[];
-  initialSubfolders: DriveFolder[];
-  breadcrumb:        { id: string; name: string }[];
-  userInfo?:         UserInfo | null;
+  folderId:  string;
+  userInfo?: UserInfo | null;
 }) {
-  const [files, setFiles]           = useState(initialFiles);
-  const [subfolders, setSubfolders] = useState(initialSubfolders);
+  const [files, setFiles]           = useState<DriveFile[]>([]);
+  const [subfolders, setSubfolders] = useState<DriveFolder[]>([]);
+  const [breadcrumb, setBreadcrumb] = useState<{ id: string; name: string }[]>([]);
+  const [loading, setLoading]       = useState(true);
   const [view, setView]             = useState<"grid" | "list">("grid");
   const [selectedFiles, setSelectedFiles]     = useState<Set<string>>(new Set());
   const [selectedFolders, setSelectedFolders] = useState<Set<string>>(new Set());
@@ -45,6 +41,34 @@ export function FolderClient({
     ]);
     setFiles(f);
     setSubfolders(sf);
+  }, [folderId, userInfo?.blikonId]);
+
+  // Carga inicial client-side — la navegación es instantánea y los datos llegan después.
+  useEffect(() => {
+    let cancelled = false;
+    setLoading(true);
+    // Reset al cambiar de folder para no mostrar contenido viejo
+    setFiles([]);
+    setSubfolders([]);
+    setSelectedFiles(new Set());
+    setSelectedFolders(new Set());
+
+    (async () => {
+      // ensureFolder en paralelo — no bloquea la carga de datos
+      ensureFolder(folderId, userInfo?.blikonId).catch(() => {});
+      const [f, sf, bc] = await Promise.all([
+        getFilesByFolder(folderId, userInfo?.blikonId).catch(() => []),
+        getFolderChildren(folderId, userInfo?.blikonId).catch(() => []),
+        getFolderBreadcrumb(folderId, userInfo?.blikonId).catch(() => []),
+      ]);
+      if (cancelled) return;
+      setFiles(f);
+      setSubfolders(sf);
+      setBreadcrumb(bc);
+      setLoading(false);
+    })();
+
+    return () => { cancelled = true; };
   }, [folderId, userInfo?.blikonId]);
 
   useEffect(() => {
@@ -160,7 +184,9 @@ export function FolderClient({
               </div>
             )}
 
-            {isEmpty ? (
+            {loading ? (
+              <FolderSkeleton view={view} />
+            ) : isEmpty ? (
               <div className="flex flex-col items-center justify-center h-80 gap-4 text-[#444746]">
                 <FolderOpen size={72} strokeWidth={0.8} className="text-[#dadce0]" />
                 <div className="text-center">
@@ -237,6 +263,36 @@ export function FolderClient({
           </main>
         </DropZone>
       </div>
+    </div>
+  );
+}
+
+function FolderSkeleton({ view }: { view: "grid" | "list" }) {
+  const placeholders = Array.from({ length: 12 });
+  if (view === "list") {
+    return (
+      <div className="bg-white rounded-xl border border-[#dadce0] overflow-hidden animate-pulse">
+        {placeholders.map((_, i) => (
+          <div key={i} className="flex items-center gap-3 px-4 py-3 border-b border-[#f0f0f0] last:border-0">
+            <div className="w-8 h-8 rounded bg-[#eef1f5] shrink-0" />
+            <div className="h-3 bg-[#eef1f5] rounded flex-1 max-w-[40%]" />
+            <div className="h-3 bg-[#eef1f5] rounded w-24 ml-auto" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 xl:grid-cols-6 gap-3 animate-pulse">
+      {placeholders.map((_, i) => (
+        <div key={i} className="rounded-xl border border-[#dadce0] bg-white overflow-hidden">
+          <div className="h-36 bg-[#eef1f5]" />
+          <div className="px-3 py-2.5 flex flex-col gap-2">
+            <div className="h-3 bg-[#eef1f5] rounded w-3/4" />
+            <div className="h-2.5 bg-[#eef1f5] rounded w-1/2" />
+          </div>
+        </div>
+      ))}
     </div>
   );
 }
