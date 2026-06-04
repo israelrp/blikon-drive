@@ -3,12 +3,16 @@
 import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { FolderOpen, Plus, X, AlertCircle, Trash2, CheckSquare, CheckCircle2 } from "lucide-react";
+import { FolderOpen, Plus, X, AlertCircle, Trash2, CheckSquare, CheckCircle2, Share2, Users } from "lucide-react";
 import { DriveHeader } from "@/components/DriveHeader";
-import { ensureFolder, deleteFolder, batchDeleteFolders, DriveFolder } from "@/lib/api";
+import { ShareDialog } from "@/components/ShareDialog";
+import {
+  ensureFolder, deleteFolder, batchDeleteFolders,
+  getSharedWithMe, DriveFolder, SharedFolder,
+} from "@/lib/api";
 
 interface UserInfo {
-  blikonId: string; cronoCode: string; profileName: string; email: string; photo: string;
+  blikonId: string; cronoCode: string; profileName: string; email: string; photo: string; phoneNumber: string;
 }
 
 // Reglas: minúsculas, letras, números y guiones. Empieza con letra o número.
@@ -48,6 +52,15 @@ export function HomeClient({
   const [loading, setLoading] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [deleting, setDeleting] = useState(false);
+  const [shared, setShared]   = useState<SharedFolder[]>([]);
+  const [shareTarget, setShareTarget] = useState<DriveFolder | null>(null);
+
+  // Cargar folders compartidos conmigo (por mi teléfono)
+  useEffect(() => {
+    getSharedWithMe(userInfo.phoneNumber, userInfo.blikonId)
+      .then(setShared)
+      .catch(() => {});
+  }, [userInfo.phoneNumber, userInfo.blikonId]);
 
   const slug = slugify(input);
 
@@ -243,11 +256,74 @@ export function HomeClient({
                 selected={selected.has(f.id)}
                 onToggleSelect={toggleSelect}
                 onDelete={deleteOne}
+                onShare={setShareTarget}
               />
             ))}
           </div>
         )}
+
+        {/* Compartidos conmigo */}
+        {shared.length > 0 && (
+          <section className="mt-10">
+            <div className="flex items-center gap-2 mb-4">
+              <Users size={18} className="text-[#1a73e8]" />
+              <h2 className="text-lg font-medium text-[#202124]">Compartidos conmigo</h2>
+            </div>
+            <div className={view === "grid"
+              ? "grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3"
+              : "flex flex-col gap-1"
+            }>
+              {shared.map((sf) => (
+                <Link
+                  key={sf.shareId}
+                  href={`/folder/${sf.id}`}
+                  className={view === "grid"
+                    ? "flex flex-col rounded-xl border border-[#dadce0] bg-white hover:shadow-md transition-all overflow-hidden"
+                    : "flex items-center gap-3 px-4 py-2.5 rounded-xl hover:bg-white transition-colors"
+                  }
+                >
+                  {view === "grid" ? (
+                    <>
+                      <div className="h-28 bg-[#E8F0FE] flex items-end px-3 pb-1 relative">
+                        <span className="absolute top-2 right-2 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-white/80 text-[#1a73e8]">
+                          {sf.permission === "editor" ? "Editor" : "Lector"}
+                        </span>
+                        <svg viewBox="0 0 80 60" className="w-full" fill="none">
+                          <rect x="0" y="12" width="80" height="48" rx="4" fill="#4285F4" />
+                          <rect x="0" y="8" width="36" height="12" rx="3" fill="#4285F4" />
+                        </svg>
+                      </div>
+                      <div className="px-3 py-2">
+                        <p className="text-sm font-medium text-[#202124] truncate">{sf.name || sf.id}</p>
+                        <p className="text-xs text-[#9aa0a6] flex items-center gap-1 truncate">
+                          <Share2 size={10} /> Compartido contigo
+                        </p>
+                      </div>
+                    </>
+                  ) : (
+                    <>
+                      <FolderOpen size={20} className="text-[#4285F4] shrink-0" />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm text-[#202124] truncate">{sf.name || sf.id}</p>
+                        <p className="text-xs text-[#9aa0a6] truncate">Compartido contigo · {sf.permission === "editor" ? "Editor" : "Lector"}</p>
+                      </div>
+                    </>
+                  )}
+                </Link>
+              ))}
+            </div>
+          </section>
+        )}
       </main>
+
+      {shareTarget && (
+        <ShareDialog
+          folderId={shareTarget.id}
+          folderName={shareTarget.name || shareTarget.id}
+          blikonId={userInfo.blikonId}
+          onClose={() => setShareTarget(null)}
+        />
+      )}
     </div>
   );
 }
@@ -259,6 +335,7 @@ function RootFolderItem({
   selected,
   onToggleSelect,
   onDelete,
+  onShare,
 }: {
   folder: DriveFolder;
   view: "grid" | "list";
@@ -266,6 +343,7 @@ function RootFolderItem({
   selected: boolean;
   onToggleSelect: (id: string) => void;
   onDelete: (id: string) => Promise<void>;
+  onShare: (folder: DriveFolder) => void;
 }) {
   const [hovered, setHovered]   = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -324,6 +402,13 @@ function RootFolderItem({
         className="fixed z-50 bg-white rounded-xl shadow-xl border border-[#dadce0] py-2 w-48"
         style={{ top: menuPos.y, left: menuPos.x }}
       >
+        <button
+          onClick={(e) => { e.preventDefault(); setMenuOpen(false); onShare(folder); }}
+          className="flex items-center gap-3 w-full px-4 py-2 text-sm text-[#202124] hover:bg-[#f6f8fc]"
+        >
+          <Share2 size={16} className="text-[#444746]" /> Compartir
+        </button>
+        <div className="border-t border-[#e8eaed] my-1" />
         <button
           onClick={handleDelete}
           disabled={deleting}

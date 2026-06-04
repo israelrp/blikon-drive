@@ -15,7 +15,7 @@ import {
 import { FolderOpen, ChevronRight, Trash2, X, CheckSquare } from "lucide-react";
 
 interface UserInfo {
-  blikonId: string; cronoCode: string; profileName: string; email: string; photo: string;
+  blikonId: string; cronoCode: string; profileName: string; email: string; photo: string; phoneNumber: string;
 }
 
 export function FolderClient({
@@ -36,12 +36,12 @@ export function FolderClient({
 
   const refresh = useCallback(async () => {
     const [f, sf] = await Promise.all([
-      getFilesByFolder(folderId, userInfo?.blikonId),
-      getFolderChildren(folderId, userInfo?.blikonId),
+      getFilesByFolder(folderId, userInfo?.blikonId, userInfo?.phoneNumber),
+      getFolderChildren(folderId, userInfo?.blikonId, userInfo?.phoneNumber),
     ]);
     setFiles(f);
     setSubfolders(sf);
-  }, [folderId, userInfo?.blikonId]);
+  }, [folderId, userInfo?.blikonId, userInfo?.phoneNumber]);
 
   // Carga inicial client-side — la navegación es instantánea y los datos llegan después.
   useEffect(() => {
@@ -57,9 +57,9 @@ export function FolderClient({
       // ensureFolder en paralelo — no bloquea la carga de datos
       ensureFolder(folderId, userInfo?.blikonId).catch(() => {});
       const [f, sf, bc] = await Promise.all([
-        getFilesByFolder(folderId, userInfo?.blikonId).catch(() => []),
-        getFolderChildren(folderId, userInfo?.blikonId).catch(() => []),
-        getFolderBreadcrumb(folderId, userInfo?.blikonId).catch(() => []),
+        getFilesByFolder(folderId, userInfo?.blikonId, userInfo?.phoneNumber).catch(() => []),
+        getFolderChildren(folderId, userInfo?.blikonId, userInfo?.phoneNumber).catch(() => []),
+        getFolderBreadcrumb(folderId, userInfo?.blikonId, userInfo?.phoneNumber).catch(() => []),
       ]);
       if (cancelled) return;
       setFiles(f);
@@ -69,7 +69,7 @@ export function FolderClient({
     })();
 
     return () => { cancelled = true; };
-  }, [folderId, userInfo?.blikonId]);
+  }, [folderId, userInfo?.blikonId, userInfo?.phoneNumber]);
 
   useEffect(() => {
     const api = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:5086";

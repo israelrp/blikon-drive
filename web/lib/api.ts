@@ -5,6 +5,14 @@ function blikonHeader(blikonId?: string): HeadersInit {
   return blikonId ? { "X-Blikon-Id": blikonId } : {};
 }
 
+// Headers de identidad + teléfono (para acceso a folders compartidos)
+function authHeaders(blikonId?: string, phoneNumber?: string): Record<string, string> {
+  const h: Record<string, string> = {};
+  if (blikonId) h["X-Blikon-Id"] = blikonId;
+  if (phoneNumber) h["X-Phone-Number"] = phoneNumber;
+  return h;
+}
+
 export interface DriveFile {
   id: string;
   name: string;
@@ -35,9 +43,9 @@ export interface Comment {
   createdAt: string;
 }
 
-export async function getFilesByFolder(coreFolderId: string, blikonId?: string): Promise<DriveFile[]> {
+export async function getFilesByFolder(coreFolderId: string, blikonId?: string, phoneNumber?: string): Promise<DriveFile[]> {
   const res = await fetch(`${API}/api/files/folder?coreFolderId=${encodeURIComponent(coreFolderId)}`,
-    { cache: "no-store", headers: blikonHeader(blikonId) });
+    { cache: "no-store", headers: authHeaders(blikonId, phoneNumber) });
   if (!res.ok) throw new Error("Error cargando archivos");
   return res.json();
 }
@@ -135,17 +143,70 @@ export async function ensureFolder(path: string, blikonId?: string, parentId?: s
   return res.json();
 }
 
-export async function getFolderChildren(parentId?: string, blikonId?: string): Promise<DriveFolder[]> {
+// ─── Compartir folders ───────────────────────────────────────────────────────
+
+export type SharePermission = "viewer" | "editor";
+
+export interface FolderShare {
+  id: string;
+  phoneNumber: string;
+  permission: SharePermission;
+  createdAt: string;
+}
+
+export interface SharedFolder extends DriveFolder {
+  ownerBlikonId: string;
+  permission: SharePermission;
+  shareId: string;
+}
+
+export async function shareFolder(
+  folderId: string,
+  phoneNumber: string,
+  permission: SharePermission,
+  blikonId?: string,
+): Promise<void> {
+  const res = await fetch(`${API}/api/shares`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...blikonHeader(blikonId) },
+    body: JSON.stringify({ folderId, phoneNumber, permission }),
+  });
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.message ?? "Error compartiendo folder");
+  }
+}
+
+export async function getFolderShares(folderId: string, blikonId?: string): Promise<FolderShare[]> {
+  const res = await fetch(`${API}/api/shares?folderId=${encodeURIComponent(folderId)}`,
+    { cache: "no-store", headers: blikonHeader(blikonId) });
+  if (!res.ok) return [];
+  return res.json();
+}
+
+export async function unshareFolder(shareId: string, blikonId?: string): Promise<void> {
+  await fetch(`${API}/api/shares/${shareId}`, { method: "DELETE", headers: blikonHeader(blikonId) });
+}
+
+export async function getSharedWithMe(phoneNumber?: string, blikonId?: string): Promise<SharedFolder[]> {
+  const headers: HeadersInit = { ...blikonHeader(blikonId) };
+  if (phoneNumber) (headers as Record<string, string>)["X-Phone-Number"] = phoneNumber;
+  const res = await fetch(`${API}/api/shares/with-me`, { cache: "no-store", headers });
+  if (!res.ok) return [];
+  return res.json();
+}
+
+export async function getFolderChildren(parentId?: string, blikonId?: string, phoneNumber?: string): Promise<DriveFolder[]> {
   const params = parentId ? `?parentId=${encodeURIComponent(parentId)}` : "";
   const res = await fetch(`${API}/api/folders/children${params}`,
-    { cache: "no-store", headers: blikonHeader(blikonId) });
+    { cache: "no-store", headers: authHeaders(blikonId, phoneNumber) });
   if (!res.ok) throw new Error("Error cargando sub-folders");
   return res.json();
 }
 
-export async function getFolderBreadcrumb(id: string, blikonId?: string): Promise<{ id: string; name: string }[]> {
+export async function getFolderBreadcrumb(id: string, blikonId?: string, phoneNumber?: string): Promise<{ id: string; name: string }[]> {
   const res = await fetch(`${API}/api/folders/breadcrumb?id=${encodeURIComponent(id)}`,
-    { cache: "no-store", headers: blikonHeader(blikonId) });
+    { cache: "no-store", headers: authHeaders(blikonId, phoneNumber) });
   if (!res.ok) return [];
   return res.json();
 }

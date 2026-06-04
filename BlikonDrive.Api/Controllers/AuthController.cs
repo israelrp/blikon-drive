@@ -98,48 +98,90 @@ public class AuthController : ControllerBase
 
         return new ValidacelProfile
         {
-            BlikonId    = body.BlikonId,
-            ProfileName = body.ProfileName ?? $"{body.FirstName} {body.LastName}".Trim(),
-            Email       = body.Email ?? "",
-            Photo       = body.Photo ?? "",
-            FirstName   = body.FirstName ?? "",
-            LastName    = body.LastName  ?? "",
-            CronoCode  = body.CronoCode ?? "",
+            UserId          = body.UserId,
+            Roles           = body.Roles ?? new List<string>(),
+            BlikonProfileId = body.BlikonProfileId,
+            BlikonId        = body.BlikonId,
+            UserTypeId      = body.UserTypeId,
+            StatusId        = body.StatusId,
+            RegisteredUser  = body.RegisteredUser,
+            PhoneNumber     = body.PhoneNumber ?? "",
+            Email           = body.Email ?? "",
+            EmailIsConfirmed = body.EmailIsConfirmed,
+            Username        = body.Username ?? "",
+            ProfileName     = body.ProfileName ?? $"{body.FirstName} {body.LastName}".Trim(),
+            Photo           = body.Photo ?? "",
+            CronoCode       = body.CronoCode ?? "",
+            FirstName       = body.FirstName ?? "",
+            LastName        = body.LastName  ?? "",
+            MotherLastName  = body.MotherLastName ?? "",
         };
     }
 
-    
+
 }
 
 public record SessionCheckRequest(string AccessToken, string? RefreshToken);
 
 public class ValidacelProfile
 {
-    public string BlikonId    { get; init; } = "";
-    public string ProfileName { get; init; } = "";
-    public string Email       { get; init; } = "";
-    public string Photo       { get; init; } = "";
-    public string FirstName   { get; init; } = "";
-    public string LastName    { get; init; } = "";
-    public string CronoCode  { get; init; } = "";
+    public int          UserId          { get; init; }
+    public List<string> Roles           { get; init; } = new();
+    public int          BlikonProfileId { get; init; }
+    public string       BlikonId        { get; init; } = "";
+    public int          UserTypeId      { get; init; }
+    public int          StatusId        { get; init; }
+    public bool         RegisteredUser  { get; init; }
+    public string       PhoneNumber     { get; init; } = "";
+    public string       Email           { get; init; } = "";
+    public bool         EmailIsConfirmed { get; init; }
+    public string       Username        { get; init; } = "";
+    public string       ProfileName     { get; init; } = "";
+    public string       Photo           { get; init; } = "";
+    public string       CronoCode       { get; init; } = "";
+    public string       FirstName       { get; init; } = "";
+    public string       LastName        { get; init; } = "";
+    public string       MotherLastName  { get; init; } = "";
 }
 
 public class ValidacelUserResponse
 {
     [System.Text.Json.Serialization.JsonPropertyName("result")]
     public bool Result { get; init; }
+    [System.Text.Json.Serialization.JsonPropertyName("message")]
+    public string? Message { get; init; }
+    [System.Text.Json.Serialization.JsonPropertyName("user_id")]
+    public int UserId { get; init; }
+    [System.Text.Json.Serialization.JsonPropertyName("roles")]
+    public List<string>? Roles { get; init; }
+    [System.Text.Json.Serialization.JsonPropertyName("blikon_profile_id")]
+    public int BlikonProfileId { get; init; }
     [System.Text.Json.Serialization.JsonPropertyName("blikon_id")]
     public string? BlikonId { get; init; }
-    [System.Text.Json.Serialization.JsonPropertyName("profile_name")]
-    public string? ProfileName { get; init; }
+    [System.Text.Json.Serialization.JsonPropertyName("user_type_id")]
+    public int UserTypeId { get; init; }
+    [System.Text.Json.Serialization.JsonPropertyName("status_id")]
+    public int StatusId { get; init; }
+    [System.Text.Json.Serialization.JsonPropertyName("registered_user")]
+    public bool RegisteredUser { get; init; }
+    [System.Text.Json.Serialization.JsonPropertyName("phone_number")]
+    public string? PhoneNumber { get; init; }
     [System.Text.Json.Serialization.JsonPropertyName("email")]
     public string? Email { get; init; }
+    [System.Text.Json.Serialization.JsonPropertyName("email_is_confirmed")]
+    public bool EmailIsConfirmed { get; init; }
+    [System.Text.Json.Serialization.JsonPropertyName("username")]
+    public string? Username { get; init; }
+    [System.Text.Json.Serialization.JsonPropertyName("profile_name")]
+    public string? ProfileName { get; init; }
     [System.Text.Json.Serialization.JsonPropertyName("photo")]
     public string? Photo { get; init; }
+    [System.Text.Json.Serialization.JsonPropertyName("crono_code")]
+    public string? CronoCode { get; init; }
     [System.Text.Json.Serialization.JsonPropertyName("first_name")]
     public string? FirstName { get; init; }
     [System.Text.Json.Serialization.JsonPropertyName("last_name")]
     public string? LastName { get; init; }
-    [System.Text.Json.Serialization.JsonPropertyName("crono_code")]
-    public string? CronoCode { get; init; }
+    [System.Text.Json.Serialization.JsonPropertyName("mother_last_name")]
+    public string? MotherLastName { get; init; }
 }

@@ -14,6 +14,7 @@ export interface UserProfile {
   firstName:   string;
   lastName:    string;
   cronoCode:   string;   // identificador único del usuario en Blikon
+  phoneNumber: string;   // código de país + 10 dígitos (para folders compartidos)
 }
 
 const DEV_PROFILE: UserProfile = {
@@ -24,6 +25,7 @@ const DEV_PROFILE: UserProfile = {
   firstName:   "Dev",
   lastName:    "User",
   cronoCode:   "dev-crono-001",
+  phoneNumber: "521234567890",
 };
 
 /**
@@ -63,6 +65,7 @@ export async function getSession(): Promise<UserProfile | null> {
       firstName:   data.firstName   ?? "",
       lastName:    data.lastName    ?? "",
       cronoCode:   data.cronoCode   ?? "",
+      phoneNumber: data.phoneNumber ?? "",
     };
   } catch {
     return null;

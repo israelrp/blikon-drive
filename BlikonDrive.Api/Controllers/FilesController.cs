@@ -20,11 +20,41 @@ public class FilesController(DriveDbContext db, IBlobStorageService storage, Fil
             ? v.ToString()
             : "dev-blikon-001";
 
+    private string Phone =>
+        Request.Headers.TryGetValue("X-Phone-Number", out var v) && !string.IsNullOrWhiteSpace(v)
+            ? new string(v.ToString().Where(char.IsDigit).ToArray())
+            : "";
+
+    /// Devuelve el BlikonId del DUEÑO si el caller tiene acceso al folder
+    /// (lo posee, o es un folder compartido con su teléfono, o descendiente).
+    /// null si no tiene acceso.
+    private async Task<string?> ResolveOwnerAsync(string coreFolderId)
+    {
+        var folder = await db.Folders.FirstOrDefaultAsync(f => f.Id == coreFolderId);
+        if (folder is null) return BlikonId;           // folder aún no registrado → trátalo como propio
+        if (folder.BlikonId == BlikonId) return BlikonId; // es dueño
+
+        // ¿Compartido con mi teléfono? (el share o un ancestro)
+        if (Phone.Length >= 10)
+        {
+            var myShares = await db.FolderShares
+                .Where(s => s.PhoneNumber == Phone)
+                .Select(s => s.FolderId)
+                .ToListAsync();
+            if (myShares.Any(sf => coreFolderId == sf || coreFolderId.StartsWith(sf + "/")))
+                return folder.BlikonId;                 // acceso → dueño real
+        }
+        return null;                                    // sin acceso
+    }
+
     [HttpGet("folder")]
     public async Task<IActionResult> GetByFolder([FromQuery] string coreFolderId)
     {
+        var owner = await ResolveOwnerAsync(coreFolderId);
+        if (owner is null) return Ok(Array.Empty<object>());
+
         var files = await db.Files
-            .Where(f => f.BlikonId == BlikonId && f.CoreFolderId == coreFolderId && f.DeletedAt == null)
+            .Where(f => f.BlikonId == owner && f.CoreFolderId == coreFolderId && f.DeletedAt == null)
             .OrderByDescending(f => f.CreatedAt)
             .Select(f => new
             {

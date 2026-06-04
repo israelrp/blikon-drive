@@ -9,11 +9,13 @@ public class DriveDbContext(DbContextOptions<DriveDbContext> options) : DbContex
     public DbSet<DriveFile> Files => Set<DriveFile>();
     public DbSet<FileComment> Comments => Set<FileComment>();
     public DbSet<DriveFolder> Folders => Set<DriveFolder>();
+    public DbSet<FolderShare> FolderShares => Set<FolderShare>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         modelBuilder.ApplyConfiguration(new DriveFileConfiguration());
         modelBuilder.ApplyConfiguration(new FileCommentConfiguration());
         modelBuilder.ApplyConfiguration(new DriveFolderConfiguration());
+        modelBuilder.ApplyConfiguration(new FolderShareConfiguration());
     }
 }

@@ -14,6 +14,31 @@ public class FoldersController(DriveDbContext db) : ControllerBase
             ? v.ToString()
             : "dev-blikon-001";
 
+    private string Phone =>
+        Request.Headers.TryGetValue("X-Phone-Number", out var v) && !string.IsNullOrWhiteSpace(v)
+            ? new string(v.ToString().Where(char.IsDigit).ToArray())
+            : "";
+
+    /// BlikonId del dueño si el caller tiene acceso al folder (propio o compartido
+    /// con su teléfono o descendiente de un compartido). null si no tiene acceso.
+    private async Task<string?> ResolveOwnerAsync(string folderId)
+    {
+        var folder = await db.Folders.FirstOrDefaultAsync(f => f.Id == folderId);
+        if (folder is null) return BlikonId;
+        if (folder.BlikonId == BlikonId) return BlikonId;
+
+        if (Phone.Length >= 10)
+        {
+            var myShares = await db.FolderShares
+                .Where(s => s.PhoneNumber == Phone)
+                .Select(s => s.FolderId)
+                .ToListAsync();
+            if (myShares.Any(sf => folderId == sf || folderId.StartsWith(sf + "/")))
+                return folder.BlikonId;
+        }
+        return null;
+    }
+
     [HttpPost("ensure")]
     public async Task<IActionResult> Ensure([FromBody] EnsureFolderRequest req)
     {
@@ -72,14 +97,27 @@ public class FoldersController(DriveDbContext db) : ControllerBase
     [HttpGet("children")]
     public async Task<IActionResult> GetChildren([FromQuery] string? parentId)
     {
-        var blikonId = BlikonId;
+        // Sin parentId → raíces propias del usuario.
+        // Con parentId → hijos del folder, resolviendo acceso (propio o compartido).
+        string owner;
+        if (string.IsNullOrEmpty(parentId))
+        {
+            owner = BlikonId;
+        }
+        else
+        {
+            var resolved = await ResolveOwnerAsync(parentId);
+            if (resolved is null) return Ok(Array.Empty<FolderDto>());
+            owner = resolved;
+        }
+
         var children = await db.Folders
-            .Where(f => f.BlikonId == blikonId && f.ParentId == parentId)
+            .Where(f => f.BlikonId == owner && f.ParentId == parentId)
             .OrderBy(f => f.Name)
             .Select(f => new FolderDto(
                 f.Id, f.Name, f.ParentId, f.CreatedAt,
                 db.Folders.Count(c => c.ParentId == f.Id),
-                db.Files.Count(x => x.CoreFolderId == f.Id)))
+                db.Files.Count(x => x.CoreFolderId == f.Id && x.DeletedAt == null)))
             .ToListAsync();
 
         return Ok(children);
