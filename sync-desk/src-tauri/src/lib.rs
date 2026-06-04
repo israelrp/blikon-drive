@@ -456,7 +456,7 @@ pub fn run() {
             let config = db::load_config(&conn).unwrap_or_default();
             let conn   = Arc::new(Mutex::new(conn));
             let sync_state = Arc::new(Mutex::new(SyncState {
-                config: config.clone(), paused: false, watcher: None,
+                config: config.clone(), paused: false, watcher: None, syncing: false,
             }));
             app.manage(conn.clone());
             app.manage(sync_state.clone());

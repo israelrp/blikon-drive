@@ -8,9 +8,10 @@ use uuid::Uuid;
 use crate::{db, models::{AppConfig, SyncEntry}, upload};
 
 pub struct SyncState {
-    pub config:  AppConfig,
-    pub paused:  bool,
-    pub watcher: Option<RecommendedWatcher>,
+    pub config:   AppConfig,
+    pub paused:   bool,
+    pub watcher:  Option<RecommendedWatcher>,
+    pub syncing:  bool,   // evita run_sync concurrentes
 }
 
 /// Emite un log al frontend (visible en DevTools) y a stdout.
@@ -21,32 +22,60 @@ fn slog(app: &AppHandle, msg: impl Into<String>) {
 }
 
 /// Llama a /api/folders/ensure para crear el folder y toda su cadena de padres.
+/// Timeout corto para no colgar el sync si un POST se traba.
 async fn ensure_folder(client: &Client, api_url: &str, blikon_id: &str, path: &str) {
-    let _ = client
+    let res = client
         .post(format!("{api_url}/api/folders/ensure"))
         .header("X-Blikon-Id", blikon_id)
         .json(&serde_json::json!({ "path": path }))
+        .timeout(Duration::from_secs(20))
         .send()
         .await;
+    if let Err(e) = res {
+        log::warn!("ensure_folder '{}' falló: {}", path, e);
+    }
 }
 
-/// Recopila recursivamente todos los archivos bajo `dir`.
+/// Slugifica un segmento de carpeta igual que el API: minúsculas, espacios→guión,
+/// solo [a-z0-9-]. Evita IDs con espacios/mayúsculas que no coinciden con el server.
+fn slug_segment(s: &str) -> String {
+    let lower = s.to_lowercase();
+    let mut out = String::with_capacity(lower.len());
+    let mut prev_dash = false;
+    for ch in lower.chars() {
+        if ch.is_ascii_alphanumeric() {
+            out.push(ch);
+            prev_dash = false;
+        } else if ch == '-' || ch == '_' || ch.is_whitespace() {
+            if !prev_dash && !out.is_empty() { out.push('-'); prev_dash = true; }
+        }
+        // otros caracteres se ignoran
+    }
+    while out.ends_with('-') { out.pop(); }
+    out
+}
+
+/// Carpetas que NUNCA se sincronizan (basura inequívoca: deps, VCS, sistema).
+fn is_ignored_dir(name: &str) -> bool {
+    matches!(name,
+        "node_modules" | "$RECYCLE.BIN" | "System Volume Information" | "__pycache__"
+    ) || name.starts_with('.')   // .git, .svn, .cache, .DS_Store, etc.
+}
+
+/// Recopila recursivamente todos los archivos bajo `dir` — SOLO filesystem, sin red.
 /// Devuelve vec de (ruta_absoluta_archivo, core_folder_id).
-/// Las subcarpetas se mapean como "{base_folder_id}/{relpath_de_subcarpeta}".
-async fn collect_files_recursive(
+/// Las subcarpetas se mapean como "{base_folder_id}/{slug(subcarpeta)}".
+fn collect_files_recursive(
+    app:            &AppHandle,
     dir:            &PathBuf,
-    root:           &PathBuf,
     base_folder_id: &str,
-    client:         &Client,
-    api_url:        &str,
-    blikon_id:     &str,
 ) -> Vec<(PathBuf, String)> {
     let mut result = Vec::new();
 
     let entries = match std::fs::read_dir(dir) {
         Ok(e) => e,
         Err(e) => {
-            log::warn!("No se pudo leer {:?}: {}", dir, e);
+            slog(app, format!("no se pudo leer {:?}: {}", dir, e));
             return result;
         }
     };
@@ -57,23 +86,13 @@ async fn collect_files_recursive(
         if path.is_file() {
             result.push((path, base_folder_id.to_string()));
         } else if path.is_dir() {
-            // Calcular el folder ID de la subcarpeta como "base/relpath"
-            let rel = path.strip_prefix(root).unwrap_or(&path);
-            let rel_str = rel.to_string_lossy().replace('\\', "/");
-            let sub_folder_id = format!("{}/{}", base_folder_id, rel_str);
+            let name = path.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+            if is_ignored_dir(&name) { continue; }
+            let slug = slug_segment(&name);
+            if slug.is_empty() { continue; }
+            let sub_folder_id = format!("{}/{}", base_folder_id, slug);
 
-            // Asegurarnos de que el folder exista en Drive
-            ensure_folder(client, api_url, blikon_id, &sub_folder_id).await;
-
-            // Descender recursivamente
-            let mut sub = Box::pin(collect_files_recursive(
-                &path,
-                root,
-                &sub_folder_id,
-                client,
-                api_url,
-                blikon_id,
-            )).await;
+            let mut sub = collect_files_recursive(app, &path, &sub_folder_id);
             result.append(&mut sub);
         }
     }
@@ -86,11 +105,22 @@ pub async fn run_sync(
     state: Arc<Mutex<SyncState>>,
     conn:  Arc<Mutex<rusqlite::Connection>>,
 ) {
+    // Guard anti-concurrencia: si ya hay un sync corriendo, salimos.
+    {
+        let mut s = state.lock().unwrap();
+        if s.syncing {
+            slog(&app, "run_sync ya en curso — omitiendo llamada duplicada");
+            return;
+        }
+        s.syncing = true;
+    }
+
     let config = { state.lock().unwrap().config.clone() };
     slog(&app, format!("run_sync: {} folder(s), api={}, blikonId={}",
         config.sync_folders.len(), config.api_url, config.blikon_id));
     if config.sync_folders.is_empty() {
         slog(&app, "sin folders configurados — nada que sincronizar");
+        state.lock().unwrap().syncing = false;
         return;
     }
 
@@ -113,30 +143,36 @@ pub async fn run_sync(
 
         slog(&app, format!("sincronizando '{}' ← {:?}", folder.core_folder_id, root_path));
 
-        // Asegurar que el folder raíz existe en Drive
-        ensure_folder(&client, &config.api_url, &config.blikon_id, &folder.core_folder_id).await;
-
-        // Recopilar todos los archivos recursivamente
-        let files = collect_files_recursive(
-            &root_path,
-            &root_path,
-            &folder.core_folder_id,
-            &client,
-            &config.api_url,
-            &config.blikon_id,
-        ).await;
-
+        // 1. Recorrido rápido del filesystem (sin red)
+        let files = collect_files_recursive(&app, &root_path, &folder.core_folder_id);
         slog(&app, format!("{} archivo(s) encontrado(s) en '{}'", files.len(), folder.core_folder_id));
 
-        for (file_path, core_folder_id) in files {
-            if state.lock().unwrap().paused { return; }
+        // 2. Filtrar los que faltan por subir
+        let pending: Vec<_> = files.into_iter().filter(|(p, _)| {
+            let c = conn.lock().unwrap();
+            !db::entry_exists_synced(&c, &p.to_string_lossy())
+        }).collect();
+        slog(&app, format!("{} archivo(s) pendiente(s) por subir", pending.len()));
 
-            // Skip si ya está sincronizado
-            let already = {
-                let c = conn.lock().unwrap();
-                db::entry_exists_synced(&c, &file_path.to_string_lossy())
-            };
-            if already { continue; }
+        // 3. Asegurar (una vez) cada folder único que tiene archivos pendientes.
+        //    El API crea toda la cadena de padres, así que basta con el folder hoja.
+        let mut ensured = std::collections::HashSet::new();
+        for (_, fid) in &pending {
+            if ensured.insert(fid.clone()) {
+                ensure_folder(&client, &config.api_url, &config.blikon_id, fid).await;
+            }
+        }
+        if !ensured.is_empty() {
+            slog(&app, format!("{} folder(s) asegurado(s) en Drive", ensured.len()));
+        }
+
+        let files = pending;
+
+        for (file_path, core_folder_id) in files {
+            if state.lock().unwrap().paused {
+                state.lock().unwrap().syncing = false;
+                return;
+            }
 
             let file_name  = file_path.file_name().unwrap().to_string_lossy().to_string();
             let size_bytes = file_path.metadata().map(|m| m.len() as i64).unwrap_or(0);
@@ -208,6 +244,9 @@ pub async fn run_sync(
             app.emit("sync_entry_updated", &final_entry).ok();
         }
     }
+
+    state.lock().unwrap().syncing = false;
+    slog(&app, "sync completado");
 }
 
 pub fn start_watcher(
