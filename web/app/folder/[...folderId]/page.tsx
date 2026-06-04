@@ -1,17 +1,14 @@
-import { requireSession } from "@/lib/auth";
+"use client";
+
+import { useParams } from "next/navigation";
 import { FolderClient } from "./FolderClient";
+import { useSession } from "../SessionContext";
 
-export default async function FolderPage({
-  params,
-}: {
-  params: Promise<{ folderId: string[] }>;
-}) {
-  const { folderId } = await params;
-  const decodedId = folderId.map(decodeURIComponent).join("/");
+export default function FolderPage() {
+  const session = useSession();
+  const params  = useParams<{ folderId: string[] }>();
+  const segments = Array.isArray(params.folderId) ? params.folderId : [params.folderId];
+  const folderId = segments.map(decodeURIComponent).join("/");
 
-  // Solo resolvemos la sesión (rápido). Los datos del folder se cargan
-  // client-side para que la navegación sea instantánea.
-  const session = await requireSession();
-
-  return <FolderClient folderId={decodedId} userInfo={session} />;
+  return <FolderClient folderId={folderId} userInfo={session} />;
 }
