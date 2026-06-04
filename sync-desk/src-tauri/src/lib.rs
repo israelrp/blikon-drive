@@ -28,9 +28,34 @@ type AppState = Arc<Mutex<SyncState>>;
 const AUTH_BRIDGE_SCRIPT: &str = r#"
 (function () {
   var signaled = false;
+  var PROFILE_URL = 'https://api-authentication-v3.com.blog/api/v3/users';
 
-  console.log('[BS] script loaded, url=' + window.location.href);
+  // ── Caso 1: estamos en la página de la API con el JSON del perfil ──
+  if (window.location.href.indexOf(PROFILE_URL) === 0) {
+    try {
+      var raw  = document.body && document.body.innerText;
+      var p    = JSON.parse(raw);
+      console.log('[BS] leyendo perfil desde página API, keys=' + Object.keys(p).join(','));
 
+      var profile = {
+        blikonId:    p.blikon_id    || p.blikonId    || '',
+        cronoCode:   p.crono_code   || p.cronoCode   || '',
+        profileName: p.profile_name || p.profileName || ((p.first_name || p.firstName || '') + ' ' + (p.last_name || p.lastName || '')).trim(),
+        email:       p.email        || '',
+        photo:       p.photo        || '',
+        firstName:   p.first_name   || p.firstName   || '',
+        lastName:    p.last_name    || p.lastName     || ''
+      };
+      console.log('[BS] perfil → blikonId=' + profile.blikonId + ' cronoCode=' + profile.cronoCode);
+      window.location.href = 'tauri-auth://profile?d=' + encodeURIComponent(JSON.stringify(profile));
+    } catch(e) {
+      console.warn('[BS] error parseando perfil:', e);
+      window.location.href = 'tauri-auth://get-profile';
+    }
+    return;
+  }
+
+  // ── Caso 2: estamos en validacel.com.blog — detectar login exitoso ──
   function showBanner(msg, color) {
     var b = document.getElementById('__blikon_banner');
     if (!b) {
@@ -56,30 +81,9 @@ const AUTH_BRIDGE_SCRIPT: &str = r#"
     if (!isSuccessPage()) return;
     signaled = true;
     showBanner('Conectando con Blikon Sync…', '#1a73e8');
-
-    // Obtener perfil desde la API (sin CORS — corremos en contexto validacel.com.blog)
-    fetch('https://api-authentication-v3.com.blog/api/v3/users', { credentials: 'include' })
-      .then(function(r) { return r.json(); })
-      .then(function(p) {
-        console.log('[BS] respuesta API keys:', Object.keys(p).join(', '));
-
-        // Soporte snake_case y camelCase por si la API varía
-        var profile = {
-          blikonId:    p.blikon_id    || p.blikonId    || '',
-          cronoCode:   p.crono_code   || p.cronoCode   || '',
-          profileName: p.profile_name || p.profileName || ((p.first_name || p.firstName || '') + ' ' + (p.last_name || p.lastName || '')).trim(),
-          email:       p.email        || '',
-          photo:       p.photo        || '',
-          firstName:   p.first_name   || p.firstName   || '',
-          lastName:    p.last_name    || p.lastName     || ''
-        };
-        console.log('[BS] perfil → blikonId=' + profile.blikonId + ' cronoCode=' + profile.cronoCode);
-        window.location.href = 'tauri-auth://profile?d=' + encodeURIComponent(JSON.stringify(profile));
-      })
-      .catch(function(err) {
-        console.warn('[BS] fetch perfil falló, fallback macos:', err);
-        window.location.href = 'tauri-auth://get-profile';
-      });
+    console.log('[BS] navegando a API para obtener perfil (sin CORS)');
+    // Navegación directa — el browser envía cookies de .com.blog sin restricciones CORS
+    window.location.href = PROFILE_URL;
   }
 
   function setup() {
