@@ -13,6 +13,13 @@ pub struct SyncState {
     pub watcher: Option<RecommendedWatcher>,
 }
 
+/// Emite un log al frontend (visible en DevTools) y a stdout.
+fn slog(app: &AppHandle, msg: impl Into<String>) {
+    let m = msg.into();
+    println!("[Sync] {m}");
+    app.emit("sync_log", &m).ok();
+}
+
 /// Llama a /api/folders/ensure para crear el folder y toda su cadena de padres.
 async fn ensure_folder(client: &Client, api_url: &str, blikon_id: &str, path: &str) {
     let _ = client
@@ -80,7 +87,12 @@ pub async fn run_sync(
     conn:  Arc<Mutex<rusqlite::Connection>>,
 ) {
     let config = { state.lock().unwrap().config.clone() };
-    if config.sync_folders.is_empty() { return; }
+    slog(&app, format!("run_sync: {} folder(s), api={}, blikonId={}",
+        config.sync_folders.len(), config.api_url, config.blikon_id));
+    if config.sync_folders.is_empty() {
+        slog(&app, "sin folders configurados — nada que sincronizar");
+        return;
+    }
 
     let client = Client::builder()
         .timeout(Duration::from_secs(300))
@@ -88,13 +100,18 @@ pub async fn run_sync(
         .unwrap();
 
     for folder in &config.sync_folders {
-        if !folder.enabled { continue; }
+        if !folder.enabled {
+            slog(&app, format!("folder '{}' deshabilitado, omitido", folder.core_folder_id));
+            continue;
+        }
 
         let root_path = PathBuf::from(&folder.local_path);
         if !root_path.exists() {
-            log::warn!("Carpeta local no encontrada: {:?}", root_path);
+            slog(&app, format!("carpeta local NO existe: {:?}", root_path));
             continue;
         }
+
+        slog(&app, format!("sincronizando '{}' ← {:?}", folder.core_folder_id, root_path));
 
         // Asegurar que el folder raíz existe en Drive
         ensure_folder(&client, &config.api_url, &config.blikon_id, &folder.core_folder_id).await;
@@ -108,6 +125,8 @@ pub async fn run_sync(
             &config.api_url,
             &config.blikon_id,
         ).await;
+
+        slog(&app, format!("{} archivo(s) encontrado(s) en '{}'", files.len(), folder.core_folder_id));
 
         for (file_path, core_folder_id) in files {
             if state.lock().unwrap().paused { return; }
@@ -163,20 +182,26 @@ pub async fn run_sync(
             ).await;
 
             let final_entry = match result {
-                Ok(file_id) => SyncEntry {
-                    id: entry_id, sync_folder_id: folder_id,
-                    file_name, local_path: file_path.to_string_lossy().to_string(),
-                    file_id: Some(file_id), size_bytes,
-                    status: "synced".into(), progress: 100,
-                    error: None, updated_at: Utc::now().to_rfc3339(),
-                },
-                Err(e) => SyncEntry {
-                    id: entry_id, sync_folder_id: folder_id,
-                    file_name, local_path: file_path.to_string_lossy().to_string(),
-                    file_id: None, size_bytes,
-                    status: "error".into(), progress: 0,
-                    error: Some(e.to_string()), updated_at: Utc::now().to_rfc3339(),
-                },
+                Ok(file_id) => {
+                    slog(&app, format!("✓ subido '{}' → {}", file_name, file_id));
+                    SyncEntry {
+                        id: entry_id, sync_folder_id: folder_id,
+                        file_name, local_path: file_path.to_string_lossy().to_string(),
+                        file_id: Some(file_id), size_bytes,
+                        status: "synced".into(), progress: 100,
+                        error: None, updated_at: Utc::now().to_rfc3339(),
+                    }
+                }
+                Err(e) => {
+                    slog(&app, format!("✗ error subiendo '{}': {}", file_name, e));
+                    SyncEntry {
+                        id: entry_id, sync_folder_id: folder_id,
+                        file_name, local_path: file_path.to_string_lossy().to_string(),
+                        file_id: None, size_bytes,
+                        status: "error".into(), progress: 0,
+                        error: Some(e.to_string()), updated_at: Utc::now().to_rfc3339(),
+                    }
+                }
             };
 
             { db::upsert_entry(&conn.lock().unwrap(), &final_entry).ok(); }

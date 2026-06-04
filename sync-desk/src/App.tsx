@@ -47,6 +47,11 @@ export default function App() {
 
     invoke<SyncEntry[]>("get_entries").then(setEntries).catch(() => {});
 
+    // Logs de diagnóstico del proceso de sync (Rust → DevTools)
+    const unlistenLog = listen<string>("sync_log", (e) => {
+      console.log("[Sync]", e.payload);
+    });
+
     // Actualizaciones de sync en tiempo real
     const unlistenEntry = listen<SyncEntry>("sync_entry_updated", (e) => {
       setEntries((prev) => {
@@ -77,6 +82,7 @@ export default function App() {
     });
 
     return () => {
+      unlistenLog.then((f) => f());
       unlistenEntry.then((f) => f());
       unlistenSuccess.then((f) => f());
       unlistenClosed.then((f) => f());

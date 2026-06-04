@@ -162,6 +162,15 @@ async fn save_config(
     conn:   State<'_, DbConn>,
     app:    AppHandle,
 ) -> Result<(), String> {
+    // Preservar identidad/perfil del config actual — SetupView no los reenvía
+    let mut config = config;
+    {
+        let cur = state.lock().unwrap().config.clone();
+        if config.blikon_id.is_empty()  { config.blikon_id  = cur.blikon_id; }
+        if config.crono_code.is_empty() { config.crono_code = cur.crono_code; }
+        if config.user_profile.is_none() { config.user_profile = cur.user_profile; }
+    }
+
     { db::save_config(&conn.lock().unwrap(), &config).map_err(|e| e.to_string())?; }
     { let mut s = state.lock().unwrap(); s.config = config; s.watcher = None; }
     let s = Arc::clone(&state);
