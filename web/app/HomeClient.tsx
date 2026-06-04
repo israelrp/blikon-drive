@@ -1,11 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { FolderOpen, Plus, X, AlertCircle } from "lucide-react";
+import { FolderOpen, Plus, X, AlertCircle, Trash2, CheckSquare, CheckCircle2 } from "lucide-react";
 import { DriveHeader } from "@/components/DriveHeader";
-import { ensureFolder, DriveFolder } from "@/lib/api";
+import { ensureFolder, deleteFolder, batchDeleteFolders, DriveFolder } from "@/lib/api";
 
 interface UserInfo {
   blikonId: string; cronoCode: string; profileName: string; email: string; photo: string;
@@ -46,6 +46,8 @@ export function HomeClient({
   const [input, setInput]     = useState("");
   const [error, setError]     = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [selected, setSelected] = useState<Set<string>>(new Set());
+  const [deleting, setDeleting] = useState(false);
 
   const slug = slugify(input);
 
@@ -73,6 +75,43 @@ export function HomeClient({
     }
   }
 
+  function toggleSelect(id: string) {
+    setSelected((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id); else next.add(id);
+      return next;
+    });
+  }
+
+  function clearSelection() {
+    setSelected(new Set());
+  }
+
+  function selectAll() {
+    setSelected(new Set(folders.map((f) => f.id)));
+  }
+
+  async function deleteOne(id: string) {
+    await deleteFolder(id, userInfo.blikonId);
+    setFolders((prev) => prev.filter((f) => f.id !== id));
+    setSelected((prev) => { const n = new Set(prev); n.delete(id); return n; });
+  }
+
+  async function handleBatchDelete() {
+    if (selected.size === 0) return;
+    setDeleting(true);
+    try {
+      await batchDeleteFolders(Array.from(selected), userInfo.blikonId);
+      const ids = selected;
+      setFolders((prev) => prev.filter((f) => !ids.has(f.id)));
+      clearSelection();
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  const hasSelection = selected.size > 0;
+
   return (
     <div className="min-h-screen bg-[#f6f8fc]">
       <DriveHeader view={view} onViewChange={setView} userInfo={userInfo} />
@@ -89,6 +128,37 @@ export function HomeClient({
             Nuevo folder
           </button>
         </div>
+
+        {/* Barra de selección */}
+        {hasSelection && (
+          <div className="flex items-center gap-3 mb-4 px-4 py-2.5 bg-[#e8f0fe] rounded-xl border border-[#1a73e8]/20">
+            <span className="text-sm font-medium text-[#1a73e8]">
+              {selected.size} carpeta{selected.size > 1 ? "s" : ""} seleccionada{selected.size > 1 ? "s" : ""}
+            </span>
+            <div className="flex items-center gap-1 ml-auto">
+              <button
+                onClick={selectAll}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#444746] hover:bg-[#d2e3fc] rounded-full transition-colors"
+              >
+                <CheckSquare size={14} /> Todos
+              </button>
+              <button
+                onClick={handleBatchDelete}
+                disabled={deleting}
+                className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-600 bg-white hover:bg-red-50 rounded-full border border-red-200 transition-colors disabled:opacity-50"
+              >
+                <Trash2 size={14} />
+                {deleting ? "Eliminando…" : `Eliminar ${selected.size}`}
+              </button>
+              <button
+                onClick={clearSelection}
+                className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#d2e3fc] transition-colors"
+              >
+                <X size={15} className="text-[#444746]" />
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Modal crear folder */}
         {creating && (
@@ -165,42 +235,172 @@ export function HomeClient({
             : "flex flex-col gap-1"
           }>
             {folders.map((f) => (
-              <Link
+              <RootFolderItem
                 key={f.id}
-                href={`/folder/${f.id}`}
-                className={view === "grid"
-                  ? "flex flex-col rounded-xl border border-[#dadce0] bg-white hover:shadow-md transition-shadow overflow-hidden"
-                  : "flex items-center gap-3 px-4 py-2.5 rounded-xl hover:bg-white transition-colors"
-                }
-              >
-                {view === "grid" ? (
-                  <>
-                    {/* Thumbnail folder */}
-                    <div className="h-28 bg-[#FFF8E1] flex items-end px-3 pb-1">
-                      <svg viewBox="0 0 80 60" className="w-full" fill="none">
-                        <rect x="0" y="12" width="80" height="48" rx="4" fill="#F9AB00" />
-                        <rect x="0" y="8" width="36" height="12" rx="3" fill="#F9AB00" />
-                      </svg>
-                    </div>
-                    <div className="px-3 py-2">
-                      <p className="text-sm font-medium text-[#202124] truncate">{f.name || f.id}</p>
-                      <p className="text-xs text-[#9aa0a6] font-mono truncate">drive-{userInfo.cronoCode}-{f.id}.com.blog</p>
-                    </div>
-                  </>
-                ) : (
-                  <>
-                    <FolderOpen size={20} className="text-[#F9AB00] shrink-0" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-[#202124] truncate">{f.name || f.id}</p>
-                      <p className="text-xs text-[#9aa0a6] font-mono truncate">drive-{userInfo.cronoCode}-{f.id}.com.blog</p>
-                    </div>
-                  </>
-                )}
-              </Link>
+                folder={f}
+                view={view}
+                cronoCode={userInfo.cronoCode}
+                selected={selected.has(f.id)}
+                onToggleSelect={toggleSelect}
+                onDelete={deleteOne}
+              />
             ))}
           </div>
         )}
       </main>
+    </div>
+  );
+}
+
+function RootFolderItem({
+  folder,
+  view,
+  cronoCode,
+  selected,
+  onToggleSelect,
+  onDelete,
+}: {
+  folder: DriveFolder;
+  view: "grid" | "list";
+  cronoCode: string;
+  selected: boolean;
+  onToggleSelect: (id: string) => void;
+  onDelete: (id: string) => Promise<void>;
+}) {
+  const [hovered, setHovered]   = useState(false);
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [menuPos, setMenuPos]   = useState({ x: 0, y: 0 });
+  const [deleting, setDeleting] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  const showCheckbox = selected || hovered;
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    function onDown(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setMenuOpen(false);
+    }
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [menuOpen]);
+
+  function handleContextMenu(e: React.MouseEvent) {
+    e.preventDefault();
+    setMenuPos({ x: e.clientX, y: e.clientY });
+    setMenuOpen(true);
+  }
+
+  function handleClick(e: React.MouseEvent) {
+    if (e.ctrlKey || e.metaKey) {
+      e.preventDefault();
+      onToggleSelect(folder.id);
+    }
+  }
+
+  function handleCheckbox(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+    onToggleSelect(folder.id);
+  }
+
+  async function handleDelete(e: React.MouseEvent) {
+    e.preventDefault();
+    setMenuOpen(false);
+    setDeleting(true);
+    try {
+      await onDelete(folder.id);
+    } finally {
+      setDeleting(false);
+    }
+  }
+
+  const url = `drive-${cronoCode}-${folder.id}.com.blog`;
+
+  const contextMenu = menuOpen && (
+    <>
+      <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
+      <div
+        ref={menuRef}
+        className="fixed z-50 bg-white rounded-xl shadow-xl border border-[#dadce0] py-2 w-48"
+        style={{ top: menuPos.y, left: menuPos.x }}
+      >
+        <button
+          onClick={handleDelete}
+          disabled={deleting}
+          className="flex items-center gap-3 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 disabled:opacity-50"
+        >
+          <Trash2 size={16} />
+          {deleting ? "Eliminando…" : "Eliminar carpeta"}
+        </button>
+        <p className="px-4 pb-1 text-xs text-[#9aa0a6]">Se elimina con todo su contenido</p>
+      </div>
+    </>
+  );
+
+  const checkbox = (
+    <div
+      onClick={handleCheckbox}
+      className={`w-5 h-5 rounded-full border-2 flex items-center justify-center cursor-pointer transition-all shrink-0
+        ${selected ? "bg-[#1a73e8] border-[#1a73e8]" : "bg-white border-[#9aa0a6]"}
+        ${showCheckbox ? "opacity-100" : "opacity-0"}`}
+    >
+      {selected && <CheckCircle2 size={14} className="text-white" strokeWidth={3} />}
+    </div>
+  );
+
+  if (view === "list") {
+    return (
+      <div
+        className="relative"
+        onMouseEnter={() => setHovered(true)}
+        onMouseLeave={() => setHovered(false)}
+        onContextMenu={handleContextMenu}
+      >
+        <Link
+          href={`/folder/${folder.id}`}
+          onClick={handleClick}
+          className={`flex items-center gap-3 px-4 py-2.5 rounded-xl transition-colors
+            ${selected ? "bg-[#e8f0fe]" : "hover:bg-white"}`}
+        >
+          {checkbox}
+          <FolderOpen size={20} className="text-[#F9AB00] shrink-0" />
+          <div className="flex-1 min-w-0">
+            <p className="text-sm text-[#202124] truncate">{folder.name || folder.id}</p>
+            <p className="text-xs text-[#9aa0a6] font-mono truncate">{url}</p>
+          </div>
+        </Link>
+        {contextMenu}
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="relative"
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      onContextMenu={handleContextMenu}
+    >
+      <Link
+        href={`/folder/${folder.id}`}
+        onClick={handleClick}
+        className={`flex flex-col rounded-xl border bg-white hover:shadow-md transition-all overflow-hidden
+          ${selected ? "border-[#1a73e8] shadow-md" : "border-[#dadce0]"}`}
+      >
+        {/* Thumbnail folder */}
+        <div className={`h-28 flex items-end px-3 pb-1 relative ${selected ? "bg-[#d2e3fc]" : "bg-[#FFF8E1]"}`}>
+          <div className="absolute top-2 left-2 z-10">{checkbox}</div>
+          <svg viewBox="0 0 80 60" className="w-full" fill="none">
+            <rect x="0" y="12" width="80" height="48" rx="4" fill="#F9AB00" />
+            <rect x="0" y="8" width="36" height="12" rx="3" fill="#F9AB00" />
+          </svg>
+        </div>
+        <div className="px-3 py-2">
+          <p className="text-sm font-medium text-[#202124] truncate">{folder.name || folder.id}</p>
+          <p className="text-xs text-[#9aa0a6] font-mono truncate">{url}</p>
+        </div>
+      </Link>
+      {contextMenu}
     </div>
   );
 }
