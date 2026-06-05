@@ -175,14 +175,18 @@ public class FilesController(DriveDbContext db, IBlobStorageService storage, Fil
 
         var query = db.Files.Where(f => f.BlikonId == BlikonId && f.DeletedAt == null);
 
+        // Si se pasa un folder, buscamos en él Y en sus subfolders (slug "a/b/c").
         if (!string.IsNullOrWhiteSpace(coreFolderId))
-            query = query.Where(f => f.CoreFolderId == coreFolderId);
+        {
+            var prefix = coreFolderId + "/";
+            query = query.Where(f => f.CoreFolderId == coreFolderId || f.CoreFolderId.StartsWith(prefix));
+        }
 
         query = query.Where(f =>
-            EF.Functions.ILike(f.Name, like)
+            EF.Functions.ILike(f.Name, like)              // nombre del archivo (incluye extensión)
             || (f.Title != null && EF.Functions.ILike(f.Title, like))
             || (f.Description != null && EF.Functions.ILike(f.Description, like))
-            || (f.Extension != null && f.Extension.ToLower() == lower)
+            || (f.Extension != null && EF.Functions.ILike(f.Extension, like))
             || f.Tags.Any(t => EF.Functions.ILike(t, like))
             || (f.ContentText != null && EF.Functions.ToTsVector("spanish", f.ContentText)
                 .Matches(EF.Functions.PlainToTsQuery("spanish", term)))

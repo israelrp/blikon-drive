@@ -40,8 +40,8 @@ export function DriveHeader({
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
     if (!q.trim()) return;
+    // Búsqueda global por nombre en todos tus archivos (no se limita al folder actual).
     const params = new URLSearchParams({ q });
-    if (coreFolderId) params.set("folder", coreFolderId);
     router.push(`/search?${params}`);
   }
 
