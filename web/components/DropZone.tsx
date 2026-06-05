@@ -2,7 +2,8 @@
 
 import { useEffect, useState, useCallback } from "react";
 import { Upload } from "lucide-react";
-import { uploadFile } from "@/lib/api";
+import { uploadFolderFiles } from "@/lib/api";
+import { readDroppedItems } from "@/lib/dragUpload";
 
 export function DropZone({
   coreFolderId,
@@ -22,6 +23,7 @@ export function DropZone({
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [statusText, setStatusText] = useState("Subiendo…");
 
   const handleDragOver = useCallback((e: DragEvent) => {
     if (disabled) return;
@@ -34,19 +36,31 @@ export function DropZone({
   }, []);
 
   const handleDrop = useCallback(async (e: DragEvent) => {
-    if (disabled) return;
+    if (disabled || !e.dataTransfer) return;
     e.preventDefault();
     setDragging(false);
-    const files = Array.from(e.dataTransfer?.files ?? []);
-    if (!files.length) return;
+
+    // Recorre carpetas anidadas (webkitGetAsEntry) o archivos sueltos
+    const items = await readDroppedItems(e.dataTransfer);
+    if (!items.length) return;
 
     setUploading(true);
-    for (const file of files) {
-      await uploadFile(coreFolderId, file, setProgress, blikonId, phoneNumber);
-    }
-    setUploading(false);
     setProgress(0);
-    onUploaded();
+    setStatusText(`Subiendo ${items.length} archivo${items.length > 1 ? "s" : ""}…`);
+    try {
+      await uploadFolderFiles(
+        coreFolderId, items,
+        (done, total, name) => {
+          setProgress(Math.round((done / total) * 100));
+          setStatusText(`${done}/${total} · ${name}`);
+        },
+        blikonId, phoneNumber,
+      );
+    } finally {
+      setUploading(false);
+      setProgress(0);
+      onUploaded();
+    }
   }, [coreFolderId, onUploaded, blikonId, phoneNumber, disabled]);
 
   useEffect(() => {
@@ -70,16 +84,16 @@ export function DropZone({
           <div className="w-20 h-20 rounded-full bg-[#1a73e8] flex items-center justify-center">
             <Upload size={36} className="text-white" />
           </div>
-          <p className="text-xl font-medium text-[#1a73e8]">Suelta para subir a este folder</p>
+          <p className="text-xl font-medium text-[#1a73e8]">Suelta archivos o carpetas aquí</p>
         </div>
       )}
 
       {/* Upload progress toast */}
       {uploading && (
-        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-white rounded-2xl shadow-xl border border-[#dadce0] px-6 py-4 flex items-center gap-4 min-w-72">
+        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 bg-white rounded-2xl shadow-xl border border-[#dadce0] px-6 py-4 flex items-center gap-4 min-w-72 max-w-[90vw]">
           <Upload size={20} className="text-[#1a73e8] shrink-0 animate-bounce" />
-          <div className="flex-1">
-            <p className="text-sm font-medium text-[#202124] mb-1.5">Subiendo archivos…</p>
+          <div className="flex-1 min-w-0">
+            <p className="text-sm font-medium text-[#202124] mb-1.5 truncate">{statusText}</p>
             <div className="h-1.5 bg-gray-200 rounded-full overflow-hidden">
               <div
                 className="h-full bg-[#1a73e8] rounded-full transition-all duration-200"

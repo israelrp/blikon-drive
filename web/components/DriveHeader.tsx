@@ -3,9 +3,9 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Search, X, LayoutGrid, List, Plus, Upload, LogOut, FolderPlus, FileUp, HardDrive } from "lucide-react";
+import { Search, X, LayoutGrid, List, Plus, Upload, LogOut, FolderPlus, FileUp, FolderUp, HardDrive } from "lucide-react";
 import { BlikonDriveLogo } from "./BlikonDriveLogo";
-import { uploadFile, getStorageUsage, StorageUsage } from "@/lib/api";
+import { uploadFile, uploadFolderFiles, getStorageUsage, StorageUsage } from "@/lib/api";
 import { formatBytes } from "@/lib/utils";
 
 interface UserInfo {
@@ -36,6 +36,7 @@ export function DriveHeader({
 }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
+  const folderInputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
   const [q, setQ] = useState("");
   const [focused, setFocused] = useState(false);
@@ -72,6 +73,28 @@ export function DriveHeader({
     onUploaded?.();
   }
 
+  // Subir una carpeta completa (input con webkitdirectory) — preserva estructura
+  async function handleFolderUpload(files: FileList | null) {
+    if (!files || !files.length || !coreFolderId) return;
+    const items = Array.from(files).map((f) => ({
+      file: f,
+      relativePath: (f as File & { webkitRelativePath?: string }).webkitRelativePath || f.name,
+    }));
+    setUploading(true);
+    setProgress(0);
+    try {
+      await uploadFolderFiles(
+        coreFolderId, items,
+        (done, total) => setProgress(Math.round((done / total) * 100)),
+        userInfo?.blikonId, userInfo?.phoneNumber,
+      );
+    } finally {
+      setUploading(false);
+      setProgress(0);
+      onUploaded?.();
+    }
+  }
+
   async function handleLogout() {
     await fetch("/api/auth/logout", { method: "POST" });
     window.location.href = "/login";
@@ -85,6 +108,17 @@ export function DriveHeader({
         multiple
         className="hidden"
         onChange={e => handleFiles(e.target.files)}
+      />
+      {/* Input para subir carpeta completa (webkitdirectory) */}
+      <input
+        ref={folderInputRef}
+        type="file"
+        // @ts-expect-error — webkitdirectory no está en los tipos de React
+        webkitdirectory=""
+        directory=""
+        multiple
+        className="hidden"
+        onChange={e => handleFolderUpload(e.target.files)}
       />
 
       {/* Logo — el texto se oculta en mobile para no desfasar el header */}
@@ -173,6 +207,12 @@ export function DriveHeader({
                   className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-[#202124] hover:bg-[#f6f8fc]"
                 >
                   <FileUp size={17} className="text-[#444746]" /> Subir archivos
+                </button>
+                <button
+                  onClick={() => { setNewMenuOpen(false); folderInputRef.current?.click(); }}
+                  className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-[#202124] hover:bg-[#f6f8fc]"
+                >
+                  <FolderUp size={17} className="text-[#444746]" /> Subir carpeta
                 </button>
               </div>
             )}

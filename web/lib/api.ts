@@ -234,6 +234,43 @@ export async function getFolderAccess(id: string, blikonId?: string, phoneNumber
 // Upload chunked — 4MB por bloque
 const CHUNK_SIZE = 4 * 1024 * 1024;
 
+// Normaliza un segmento de carpeta igual que el API (minúsculas, guiones).
+function slugSegment(s: string): string {
+  return s.toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "").replace(/-+/g, "-").replace(/^-|-$/g, "");
+}
+
+export interface UploadItem { file: File; relativePath: string; }
+
+/**
+ * Sube una lista de archivos preservando su estructura de carpetas.
+ * `relativePath` es la ruta del archivo dentro del folder arrastrado/seleccionado
+ * (ej. "miCarpeta/sub/archivo.txt"). Crea los subfolders bajo `baseFolderId`.
+ */
+export async function uploadFolderFiles(
+  baseFolderId: string,
+  items: UploadItem[],
+  onProgress: (done: number, total: number, name: string) => void,
+  blikonId?: string,
+  phoneNumber?: string,
+): Promise<void> {
+  const ensured = new Set<string>();
+  let done = 0;
+  for (const { file, relativePath } of items) {
+    const segs   = relativePath.split("/");
+    const dirSeg = segs.slice(0, -1).map(slugSegment).filter(Boolean);
+    const subPath = dirSeg.join("/");
+    const coreFolderId = subPath ? `${baseFolderId}/${subPath}` : baseFolderId;
+
+    if (subPath && !ensured.has(subPath)) {
+      ensured.add(subPath);
+      await ensureFolder(subPath, blikonId, baseFolderId, phoneNumber).catch(() => {});
+    }
+    await uploadFile(coreFolderId, file, () => {}, blikonId, phoneNumber);
+    done++;
+    onProgress(done, items.length, file.name);
+  }
+}
+
 export async function uploadFile(
   coreFolderId: string,
   file: File,
