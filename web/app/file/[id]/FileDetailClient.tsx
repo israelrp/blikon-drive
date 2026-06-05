@@ -67,21 +67,21 @@ export function FileDetailClient({
           <ArrowLeft size={20} className="text-[#444746]" />
         </Link>
 
-        <div className="flex items-center gap-2 text-sm text-[#444746]">
-          <span>Mi Drive</span>
-          <ChevronRight size={14} />
-          <span className="font-mono text-xs bg-gray-200 px-2 py-0.5 rounded">{folderId}</span>
-          <ChevronRight size={14} />
-          <span className="text-[#202124] font-medium">{file.name}</span>
+        <div className="flex items-center gap-2 text-sm text-[#444746] min-w-0">
+          <span className="hidden sm:inline shrink-0">Mi Drive</span>
+          <ChevronRight size={14} className="hidden sm:inline shrink-0" />
+          <Link href={`/folder/${folderId}`} className="hidden md:inline font-mono text-xs bg-gray-200 px-2 py-0.5 rounded shrink-0 max-w-[180px] truncate hover:bg-gray-300">{folderId}</Link>
+          <ChevronRight size={14} className="hidden md:inline shrink-0" />
+          <span className="text-[#202124] font-medium truncate">{file.name}</span>
         </div>
 
-        <div className="ml-auto flex items-center gap-2">
+        <div className="ml-auto flex items-center gap-2 shrink-0">
           <button
             onClick={handleDownload}
-            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-[#1a73e8] bg-[#e8f0fe] rounded-full hover:bg-[#d2e3fc] transition-colors"
+            className="flex items-center gap-2 justify-center w-10 h-10 sm:w-auto sm:h-auto sm:px-4 sm:py-2 text-sm font-medium text-[#1a73e8] bg-[#e8f0fe] rounded-full hover:bg-[#d2e3fc] transition-colors"
           >
             <Download size={16} />
-            Descargar
+            <span className="hidden sm:inline">Descargar</span>
           </button>
           <button
             onClick={handleDelete}
@@ -93,9 +93,9 @@ export function FileDetailClient({
         </div>
       </header>
 
-      <div className="flex flex-1 min-h-0">
+      <div className="flex flex-col md:flex-row flex-1 min-h-0 overflow-y-auto md:overflow-hidden">
         {/* Preview / main */}
-        <div className="flex-1 min-h-0 flex flex-col bg-[#f8f9fa] border-r border-[#dadce0]">
+        <div className="h-[55vh] md:h-auto md:flex-1 md:min-h-0 flex flex-col bg-[#f8f9fa] md:border-r border-[#dadce0] shrink-0 md:shrink">
           <div className="flex-1 min-h-0 flex items-center justify-center p-6 overflow-auto">
             <FilePreview
               fileId={file.id}
@@ -110,8 +110,8 @@ export function FileDetailClient({
           </div>
         </div>
 
-        {/* Details panel */}
-        <aside className="w-80 shrink-0 overflow-y-auto bg-[#f6f8fc] flex flex-col">
+        {/* Details panel — debajo del preview en mobile, a la derecha en desktop */}
+        <aside className="w-full md:w-80 shrink-0 overflow-y-auto bg-[#f6f8fc] flex flex-col border-t md:border-t-0 border-[#dadce0]">
           {/* Tabs */}
           <div className="flex border-b border-[#dadce0] px-2 pt-2 shrink-0">
             {(["details", "activity"] as const).map((tab) => (
@@ -128,7 +128,7 @@ export function FileDetailClient({
             ))}
           </div>
 
-          <div className="flex-1 overflow-y-auto p-4 flex flex-col gap-4">
+          <div className="md:flex-1 md:overflow-y-auto p-4 flex flex-col gap-4">
             {activeTab === "details" ? (
               <>
                 {/* Info fija */}

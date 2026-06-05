@@ -64,7 +64,7 @@ export function DriveHeader({
   }
 
   return (
-    <header className="h-16 flex items-center gap-3 px-5 bg-[#f6f8fc] border-b border-[#e8eaed] sticky top-0 z-10">
+    <header className="h-16 flex items-center gap-2 sm:gap-3 px-3 sm:px-5 bg-[#f6f8fc] border-b border-[#e8eaed] sticky top-0 z-10">
       <input
         ref={inputRef}
         type="file"
@@ -73,10 +73,10 @@ export function DriveHeader({
         onChange={e => handleFiles(e.target.files)}
       />
 
-      {/* Logo */}
-      <Link href="/" className="flex items-center gap-2 shrink-0 mr-1">
+      {/* Logo — el texto se oculta en mobile para no desfasar el header */}
+      <Link href="/" className="flex items-center gap-2 shrink-0 sm:mr-1">
         <BlikonDriveLogo size={32} />
-        <span className="text-xl text-[#444746] font-normal tracking-tight">
+        <span className="hidden md:inline text-xl text-[#444746] font-normal tracking-tight">
           Blikon <span className="font-medium text-[#202124]">Drive</span>
         </span>
       </Link>
@@ -84,7 +84,7 @@ export function DriveHeader({
       {/* Search */}
       <form
         onSubmit={handleSearch}
-        className={`flex-1 max-w-2xl flex items-center gap-2 px-4 h-11 rounded-full transition-all
+        className={`flex-1 min-w-0 max-w-2xl flex items-center gap-2 px-3 sm:px-4 h-11 rounded-full transition-all
           ${focused ? "bg-white shadow-md" : "bg-[#e9eef6] hover:bg-[#dde3ea]"}`}
       >
         <Search size={18} className="text-[#444746] shrink-0" />
@@ -104,9 +104,9 @@ export function DriveHeader({
       </form>
 
       {/* Right actions */}
-      <div className="ml-auto flex items-center gap-2">
-        {/* View toggle */}
-        <div className="flex items-center bg-[#e9eef6] rounded-full p-1 gap-0.5">
+      <div className="ml-auto flex items-center gap-1.5 sm:gap-2 shrink-0">
+        {/* View toggle — oculto en mobile para ahorrar espacio */}
+        <div className="hidden sm:flex items-center bg-[#e9eef6] rounded-full p-1 gap-0.5">
           <button
             onClick={() => onViewChange("list")}
             className={`p-1.5 rounded-full transition-colors ${view === "list" ? "bg-[#c2e7ff]" : "hover:bg-[#dde3ea]"}`}
@@ -123,22 +123,22 @@ export function DriveHeader({
           </button>
         </div>
 
-        {/* Botón Nuevo — solo cuando hay folder activo y permiso de escritura */}
+        {/* Botón Nuevo — ícono solo en mobile, con texto en desktop */}
         {coreFolderId && canUpload && (
           <button
             onClick={() => inputRef.current?.click()}
             disabled={uploading}
-            className="flex items-center gap-2 pl-4 pr-5 h-9 bg-white text-[#202124] text-sm font-medium rounded-full shadow-md hover:shadow-lg active:shadow-sm disabled:opacity-60 transition-all border border-[#dadce0]"
+            className="flex items-center gap-2 justify-center w-9 sm:w-auto sm:pl-4 sm:pr-5 h-9 bg-white text-[#202124] text-sm font-medium rounded-full shadow-md hover:shadow-lg active:shadow-sm disabled:opacity-60 transition-all border border-[#dadce0] shrink-0"
           >
             {uploading ? (
               <>
                 <Upload size={15} className="text-[#1a73e8] animate-bounce shrink-0" />
-                <span className="text-[#1a73e8]">{progress}%</span>
+                <span className="hidden sm:inline text-[#1a73e8]">{progress}%</span>
               </>
             ) : (
               <>
                 <Plus size={15} className="text-[#444746] shrink-0" />
-                <span>Nuevo</span>
+                <span className="hidden sm:inline">Nuevo</span>
               </>
             )}
           </button>

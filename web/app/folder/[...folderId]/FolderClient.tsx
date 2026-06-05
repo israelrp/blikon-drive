@@ -136,7 +136,7 @@ export function FolderClient({
 
       <div className="flex flex-1 min-h-0">
         <DropZone coreFolderId={folderId} onUploaded={refresh} blikonId={userInfo?.blikonId} phoneNumber={userInfo?.phoneNumber} disabled={!canWrite}>
-          <main className="flex-1 overflow-y-auto px-6 py-4">
+          <main className="flex-1 overflow-y-auto px-3 sm:px-6 py-4">
             {/* Breadcrumb */}
             <nav className="flex items-center gap-1 mb-4 text-sm text-[#444746] flex-wrap">
               <Link href="/" className="hover:text-[#1a73e8] transition-colors">Mi Drive</Link>
