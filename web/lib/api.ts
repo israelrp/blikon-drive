@@ -65,6 +65,15 @@ export async function searchFiles(q: string, coreFolderId?: string, blikonId?: s
   return res.json();
 }
 
+export interface StorageUsage { usedBytes: number; quotaBytes: number; fileCount: number; }
+
+export async function getStorageUsage(blikonId?: string): Promise<StorageUsage> {
+  const res = await fetch(`${API}/api/files/storage`,
+    { cache: "no-store", headers: blikonHeader(blikonId) });
+  if (!res.ok) return { usedBytes: 0, quotaBytes: 0, fileCount: 0 };
+  return res.json();
+}
+
 export async function getDownloadUrl(id: string, inline = false): Promise<string> {
   const res = await fetch(`${API}/api/files/${id}/download${inline ? "?inline=true" : ""}`);
   const data = await res.json();

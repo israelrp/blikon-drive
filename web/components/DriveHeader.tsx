@@ -3,9 +3,10 @@
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Search, X, LayoutGrid, List, Plus, Upload, LogOut, FolderPlus, FileUp } from "lucide-react";
+import { Search, X, LayoutGrid, List, Plus, Upload, LogOut, FolderPlus, FileUp, HardDrive } from "lucide-react";
 import { BlikonDriveLogo } from "./BlikonDriveLogo";
-import { uploadFile } from "@/lib/api";
+import { uploadFile, getStorageUsage, StorageUsage } from "@/lib/api";
+import { formatBytes } from "@/lib/utils";
 
 interface UserInfo {
   profileName: string;
@@ -193,7 +194,19 @@ function UserAvatar({
   onLogout:  () => void;
 }) {
   const [open, setOpen] = useState(false);
+  const [storage, setStorage] = useState<StorageUsage | null>(null);
   const initial = userInfo?.profileName?.[0]?.toUpperCase() ?? "B";
+
+  // Cargar uso de espacio al abrir el menú
+  useEffect(() => {
+    if (open && userInfo) {
+      getStorageUsage(userInfo.blikonId).then(setStorage).catch(() => {});
+    }
+  }, [open, userInfo]);
+
+  const pct = storage && storage.quotaBytes > 0
+    ? Math.min(100, Math.round((storage.usedBytes / storage.quotaBytes) * 100))
+    : 0;
 
   return (
     <div className="relative">
@@ -224,6 +237,25 @@ function UserAvatar({
                 <p className="text-xs font-mono text-[#9aa0a6] mt-0.5 truncate">{userInfo.cronoCode}</p>
               </div>
             )}
+
+            {/* Almacenamiento usado */}
+            <div className="px-4 py-3 border-b border-[#e8eaed]">
+              <div className="flex items-center gap-2 mb-2">
+                <HardDrive size={14} className="text-[#444746]" />
+                <span className="text-xs font-medium text-[#444746]">Almacenamiento</span>
+              </div>
+              <div className="h-1.5 bg-[#e9eef6] rounded-full overflow-hidden">
+                <div
+                  className={`h-full rounded-full transition-all ${pct >= 90 ? "bg-red-500" : "bg-[#1a73e8]"}`}
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+              <p className="text-xs text-[#444746] mt-1.5">
+                {storage
+                  ? `${formatBytes(storage.usedBytes)} de ${formatBytes(storage.quotaBytes)} usados`
+                  : "Calculando…"}
+              </p>
+            </div>
             <button
               onClick={() => { setOpen(false); onLogout(); }}
               className="w-full flex items-center gap-3 px-4 py-3 text-sm text-[#202124] hover:bg-[#f6f8fc] transition-colors"
