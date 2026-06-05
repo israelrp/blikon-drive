@@ -1,4 +1,4 @@
-import { cookies, headers } from "next/headers";
+import { cookies } from "next/headers";
 
 const API     = process.env.API_URL ?? "http://localhost:5086";
 const IS_DEV  = process.env.NODE_ENV === "development";
@@ -51,15 +51,6 @@ function mapProfile(data: Record<string, unknown>): UserProfile {
 }
 
 export async function getSession(): Promise<UserProfile | null> {
-  // El middleware ya validó la sesión (con cache de cookie) y reenvía el perfil
-  // en el header x-blikon-profile. Aquí solo lo leemos — sin red, instantáneo.
-  const hdrs = await headers();
-  const fromMiddleware = hdrs.get("x-blikon-profile");
-  if (fromMiddleware) {
-    try { return mapProfile(JSON.parse(fromMiddleware)); } catch { /* fallback abajo */ }
-  }
-
-  // Fallback (si el header no llegó, p.ej. ruta pública como /login)
   const cookieStore = await cookies();
 
   if (IS_DEV) {
@@ -68,16 +59,16 @@ export async function getSession(): Promise<UserProfile | null> {
   }
 
   // CRÍTICO: sin access_token NO hay sesión, aunque el cache del perfil exista.
-  // (Evita loop de redirección: el cache vive 30 min y sobrevive al token.)
   const accessToken = cookieStore.get("access_token")?.value;
   if (!accessToken) return null;
 
-  // Con access_token presente, el cache del perfil es válido → rápido.
+  // Fast-path: perfil cacheado en cookie (lo escribe /api/auth/warm) → sin red.
   const cached = cookieStore.get("blikon_profile")?.value;
   if (cached) {
-    try { return mapProfile(JSON.parse(cached)); } catch { /* sigue */ }
+    try { return mapProfile(JSON.parse(cached)); } catch { /* valida abajo */ }
   }
 
+  // Validación real (Node runtime, API_URL fiable aquí — no en Edge/middleware).
   try {
     const res = await fetch(`${API}/api/auth/check`, {
       method:  "POST",
