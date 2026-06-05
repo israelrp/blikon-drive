@@ -65,8 +65,8 @@ export async function searchFiles(q: string, coreFolderId?: string, blikonId?: s
   return res.json();
 }
 
-export async function getDownloadUrl(id: string): Promise<string> {
-  const res = await fetch(`${API}/api/files/${id}/download`);
+export async function getDownloadUrl(id: string, inline = false): Promise<string> {
+  const res = await fetch(`${API}/api/files/${id}/download${inline ? "?inline=true" : ""}`);
   const data = await res.json();
   return data.url;
 }

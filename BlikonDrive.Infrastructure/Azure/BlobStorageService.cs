@@ -48,7 +48,7 @@ public class BlobStorageService : IBlobStorageService
         await blob.DeleteIfExistsAsync(DeleteSnapshotsOption.IncludeSnapshots, cancellationToken: ct);
     }
 
-    public Uri GetDownloadUri(string blobPath, TimeSpan expiry)
+    public Uri GetDownloadUri(string blobPath, TimeSpan expiry, string? contentType = null, bool inline = false, string? fileName = null)
     {
         var blob = GetBlobClient(blobPath);
         var sasBuilder = new BlobSasBuilder(BlobSasPermissions.Read, DateTimeOffset.UtcNow.Add(expiry))
@@ -57,6 +57,15 @@ public class BlobStorageService : IBlobStorageService
             BlobName = blobPath,
             Resource = "b"
         };
+
+        // Override de headers de respuesta para la vista previa / descarga.
+        if (!string.IsNullOrEmpty(contentType))
+            sasBuilder.ContentType = contentType;
+        if (inline)
+            sasBuilder.ContentDisposition = "inline";
+        else if (!string.IsNullOrEmpty(fileName))
+            sasBuilder.ContentDisposition = $"attachment; filename=\"{fileName}\"";
+
         return blob.GenerateSasUri(sasBuilder);
     }
 

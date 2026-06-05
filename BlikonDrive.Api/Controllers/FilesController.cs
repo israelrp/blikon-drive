@@ -156,11 +156,16 @@ public class FilesController(DriveDbContext db, IBlobStorageService storage, Fil
     }
 
     [HttpGet("{id}/download")]
-    public IActionResult GetDownloadUrl(Guid id)
+    public IActionResult GetDownloadUrl(Guid id, [FromQuery] bool inline = false)
     {
         var file = db.Files.FirstOrDefault(f => f.Id == id);
         if (file is null) return NotFound();
-        var uri = storage.GetDownloadUri(file.AzureBlobPath, TimeSpan.FromMinutes(15));
+        // inline=true → vista previa (render en navegador); si no → descarga con nombre.
+        var uri = storage.GetDownloadUri(
+            file.AzureBlobPath, TimeSpan.FromMinutes(15),
+            contentType: inline ? file.MimeType : null,
+            inline:      inline,
+            fileName:    inline ? null : file.Name);
         return Ok(new { Url = uri.ToString() });
     }
 

@@ -4,7 +4,7 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { FileDetail, addComment, updateMetadata, getDownloadUrl, deleteFile } from "@/lib/api";
 import { formatBytes } from "@/lib/utils";
-import { FileTypeIcon } from "@/components/FileTypeIcon";
+import { FilePreview } from "@/components/FilePreview";
 import { ArrowLeft, Download, Trash2, ChevronRight } from "lucide-react";
 import Link from "next/link";
 
@@ -95,18 +95,19 @@ export function FileDetailClient({
 
       <div className="flex flex-1 min-h-0">
         {/* Preview / main */}
-        <div className="flex-1 overflow-y-auto flex flex-col items-center justify-center bg-[#f8f9fa] border-r border-[#dadce0] p-12 gap-6">
-          <FileTypeIcon extension={file.extension} size="lg" />
-          <div className="text-center">
-            <h1 className="text-xl font-medium text-[#202124]">{file.title ?? file.name}</h1>
-            <p className="text-sm text-[#444746] mt-1">{file.name}</p>
+        <div className="flex-1 min-h-0 flex flex-col bg-[#f8f9fa] border-r border-[#dadce0]">
+          <div className="flex-1 min-h-0 flex items-center justify-center p-6 overflow-auto">
+            <FilePreview
+              fileId={file.id}
+              mimeType={file.mimeType}
+              extension={file.extension}
+              name={file.name}
+            />
           </div>
-          {file.contentText && (
-            <div className="max-w-2xl w-full bg-white rounded-2xl border border-[#dadce0] p-6">
-              <p className="text-xs font-medium text-[#444746] uppercase tracking-wide mb-3">Vista previa del contenido</p>
-              <p className="text-sm text-[#202124] leading-relaxed line-clamp-10">{file.contentText}</p>
-            </div>
-          )}
+          <div className="shrink-0 text-center px-6 py-3 border-t border-[#e8eaed] bg-white/60">
+            <h1 className="text-base font-medium text-[#202124] truncate">{file.title ?? file.name}</h1>
+            <p className="text-xs text-[#444746] truncate">{file.name}</p>
+          </div>
         </div>
 
         {/* Details panel */}
