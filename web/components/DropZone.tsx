@@ -61,7 +61,7 @@ export function DropZone({
   }, [handleDragOver, handleDragLeave, handleDrop]);
 
   return (
-    <div className="relative flex-1 min-h-0">
+    <div className="relative flex-1 min-w-0 min-h-0">
       {children}
 
       {/* Drag overlay */}
