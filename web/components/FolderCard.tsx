@@ -4,6 +4,7 @@ import { useState, useEffect, useRef } from "react";
 import Link from "next/link";
 import { Folder, MoreVertical, Trash2, CheckCircle2 } from "lucide-react";
 import { DriveFolder, deleteFolder } from "@/lib/api";
+import { useConfirm } from "./ConfirmDialog";
 
 export function FolderCard({
   folder,
@@ -29,6 +30,7 @@ export function FolderCard({
   const [menuPos, setMenuPos]     = useState({ x: 0, y: 0 });
   const [deleting, setDeleting]   = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const confirm = useConfirm();
 
   const showCheckbox = selected || hovered;
 
@@ -76,7 +78,11 @@ export function FolderCard({
   async function handleDelete(e: React.MouseEvent) {
     e.preventDefault();
     setMenuOpen(false);
-    if (!confirm(`¿Eliminar la carpeta "${folder.name || folder.id}" y todo su contenido?`)) return;
+    const ok = await confirm({
+      title: "Eliminar carpeta",
+      message: `¿Eliminar la carpeta "${folder.name || folder.id}" y todo su contenido?`,
+    });
+    if (!ok) return;
     setDeleting(true);
     try {
       await deleteFolder(folder.id, blikonId, phoneNumber);

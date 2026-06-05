@@ -6,6 +6,7 @@ import Link from "next/link";
 import { FolderOpen, Plus, X, AlertCircle, Trash2, CheckSquare, CheckCircle2, Share2, Users } from "lucide-react";
 import { DriveHeader } from "@/components/DriveHeader";
 import { ShareDialog } from "@/components/ShareDialog";
+import { useConfirm } from "@/components/ConfirmDialog";
 import {
   ensureFolder, deleteFolder, batchDeleteFolders,
   getSharedWithMe, DriveFolder, SharedFolder,
@@ -44,6 +45,7 @@ export function HomeClient({
   userInfo: UserInfo;
 }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [folders, setFolders] = useState(initial);
   const [view, setView]       = useState<"grid" | "list">("grid");
   const [creating, setCreating] = useState(false);
@@ -112,7 +114,11 @@ export function HomeClient({
 
   async function handleBatchDelete() {
     if (selected.size === 0) return;
-    if (!confirm(`¿Eliminar ${selected.size} carpeta${selected.size > 1 ? "s" : ""} y todo su contenido?`)) return;
+    const ok = await confirm({
+      title: "Eliminar carpetas",
+      message: `¿Eliminar ${selected.size} carpeta${selected.size > 1 ? "s" : ""} y todo su contenido?`,
+    });
+    if (!ok) return;
     setDeleting(true);
     try {
       await batchDeleteFolders(Array.from(selected), userInfo.blikonId);
@@ -351,6 +357,7 @@ function RootFolderItem({
   const [menuPos, setMenuPos]   = useState({ x: 0, y: 0 });
   const [deleting, setDeleting] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const confirm = useConfirm();
 
   const showCheckbox = selected || hovered;
 
@@ -385,7 +392,11 @@ function RootFolderItem({
   async function handleDelete(e: React.MouseEvent) {
     e.preventDefault();
     setMenuOpen(false);
-    if (!confirm(`¿Eliminar la carpeta "${folder.name || folder.id}" y todo su contenido?`)) return;
+    const ok = await confirm({
+      title: "Eliminar carpeta",
+      message: `¿Eliminar la carpeta "${folder.name || folder.id}" y todo su contenido?`,
+    });
+    if (!ok) return;
     setDeleting(true);
     try {
       await onDelete(folder.id);

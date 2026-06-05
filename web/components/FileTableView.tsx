@@ -6,6 +6,7 @@ import { MoreVertical, Download, Trash2, Info } from "lucide-react";
 import { DriveFile, updateMetadata, getDownloadUrl, deleteFile } from "@/lib/api";
 import { FileTypeIcon } from "./FileTypeIcon";
 import { formatBytes } from "@/lib/utils";
+import { useConfirm } from "./ConfirmDialog";
 
 type EditField = "title" | "description" | "tags";
 
@@ -109,6 +110,7 @@ export function FileTableView({
   const [files, setFiles] = useState<LocalFile[]>(initialFiles.map(initLocal));
   const [editing, setEditing] = useState<{ id: string; field: EditField } | null>(null);
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
+  const confirm = useConfirm();
 
   // Sincronizar cuando llegan nuevos archivos desde el padre
   const prevLen = useRef(initialFiles.length);
@@ -161,8 +163,13 @@ export function FileTableView({
 
   async function handleDelete(e: React.MouseEvent, id: string) {
     e.preventDefault();
+    setMenuOpen(null);
     const f = files.find((x) => x.id === id);
-    if (!confirm(`¿Eliminar "${f?.title || f?.name || "este archivo"}"?`)) return;
+    const ok = await confirm({
+      title: "Eliminar archivo",
+      message: `¿Eliminar "${f?.title || f?.name || "este archivo"}"? Se moverá a la papelera.`,
+    });
+    if (!ok) return;
     await deleteFile(id, blikonId, phoneNumber);
     onDeleted();
   }

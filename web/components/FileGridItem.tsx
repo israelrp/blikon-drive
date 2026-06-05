@@ -6,6 +6,7 @@ import { MoreVertical, Download, Trash2, Info, CheckCircle2 } from "lucide-react
 import { DriveFile, getDownloadUrl, deleteFile } from "@/lib/api";
 import { FileTypeIcon } from "./FileTypeIcon";
 import { formatBytes } from "@/lib/utils";
+import { useConfirm } from "./ConfirmDialog";
 
 export function FileGridItem({
   file,
@@ -26,6 +27,7 @@ export function FileGridItem({
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [hovered, setHovered] = useState(false);
+  const confirm = useConfirm();
 
   const showCheckbox = selected || hovered;
 
@@ -37,7 +39,12 @@ export function FileGridItem({
 
   async function handleDelete(e: React.MouseEvent) {
     e.preventDefault();
-    if (!confirm(`¿Eliminar "${file.title ?? file.name}"?`)) return;
+    setMenuOpen(false);
+    const ok = await confirm({
+      title: "Eliminar archivo",
+      message: `¿Eliminar "${file.title ?? file.name}"? Se moverá a la papelera.`,
+    });
+    if (!ok) return;
     await deleteFile(file.id, blikonId, phoneNumber);
     onDeleted();
   }

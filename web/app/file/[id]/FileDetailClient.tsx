@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { FileDetail, addComment, updateMetadata, getDownloadUrl, deleteFile } from "@/lib/api";
 import { formatBytes } from "@/lib/utils";
 import { FilePreview } from "@/components/FilePreview";
+import { useConfirm } from "@/components/ConfirmDialog";
 import { ArrowLeft, Download, Trash2, ChevronRight } from "lucide-react";
 import Link from "next/link";
 
@@ -20,6 +21,7 @@ export function FileDetailClient({
   phoneNumber?: string;
 }) {
   const router = useRouter();
+  const confirm = useConfirm();
   const [title, setTitle] = useState(file.title ?? "");
   const [description, setDescription] = useState(file.description ?? "");
   const [tags, setTags] = useState(file.tags.join(", "));
@@ -51,7 +53,11 @@ export function FileDetailClient({
   }
 
   async function handleDelete() {
-    if (!confirm("¿Mover a la papelera?")) return;
+    const ok = await confirm({
+      title: "Eliminar archivo",
+      message: `¿Eliminar "${file.title ?? file.name}"? Se moverá a la papelera.`,
+    });
+    if (!ok) return;
     await deleteFile(file.id, blikonId, phoneNumber);
     router.push(`/folder/${folderId}`);
   }

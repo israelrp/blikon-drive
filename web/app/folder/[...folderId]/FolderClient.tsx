@@ -13,6 +13,7 @@ import {
   DriveFile, DriveFolder,
 } from "@/lib/api";
 import { FolderOpen, ChevronRight, Trash2, X, CheckSquare, FolderPlus, AlertCircle } from "lucide-react";
+import { useConfirm } from "@/components/ConfirmDialog";
 
 interface UserInfo {
   blikonId: string; cronoCode: string; profileName: string; email: string; photo: string; phoneNumber: string;
@@ -30,6 +31,7 @@ export function FolderClient({
   folderId:  string;
   userInfo?: UserInfo | null;
 }) {
+  const confirm = useConfirm();
   const [files, setFiles]           = useState<DriveFile[]>([]);
   const [subfolders, setSubfolders] = useState<DriveFolder[]>([]);
   const [breadcrumb, setBreadcrumb] = useState<{ id: string; name: string }[]>([]);
@@ -133,8 +135,9 @@ export function FolderClient({
       selectedFolders.size > 0 ? `${selectedFolders.size} carpeta${selectedFolders.size > 1 ? "s" : ""}` : "",
       selectedFiles.size   > 0 ? `${selectedFiles.size} archivo${selectedFiles.size > 1 ? "s" : ""}` : "",
     ].filter(Boolean).join(" y ");
-    const aviso = selectedFolders.size > 0 ? " (las carpetas se eliminan con su contenido)" : "";
-    if (!confirm(`¿Eliminar ${partes}?${aviso}`)) return;
+    const aviso = selectedFolders.size > 0 ? " Las carpetas se eliminan con su contenido." : "";
+    const ok = await confirm({ title: "Eliminar elementos", message: `¿Eliminar ${partes}?${aviso}` });
+    if (!ok) return;
     setDeleting(true);
     try {
       await Promise.all([
