@@ -95,12 +95,16 @@ export function FileTableView({
   onSelect,
   onDeleted,
   canWrite = true,
+  blikonId,
+  phoneNumber,
 }: {
   files: DriveFile[];
   selected: Set<string>;
   onSelect: (id: string) => void;
   onDeleted: () => void;
   canWrite?: boolean;
+  blikonId?: string;
+  phoneNumber?: string;
 }) {
   const [files, setFiles] = useState<LocalFile[]>(initialFiles.map(initLocal));
   const [editing, setEditing] = useState<{ id: string; field: EditField } | null>(null);
@@ -128,7 +132,7 @@ export function FileTableView({
       description: file._description.trim() || undefined,
       tags:        file._tags ? file._tags.split(",").map(t => t.trim()).filter(Boolean) : [],
     };
-    await updateMetadata(file.id, payload).catch(() => {});
+    await updateMetadata(file.id, payload, blikonId, phoneNumber).catch(() => {});
   }
 
   function updateLocal(id: string, patch: Partial<LocalFile>) {
@@ -157,7 +161,7 @@ export function FileTableView({
 
   async function handleDelete(e: React.MouseEvent, id: string) {
     e.preventDefault();
-    await deleteFile(id);
+    await deleteFile(id, blikonId, phoneNumber);
     onDeleted();
   }
 

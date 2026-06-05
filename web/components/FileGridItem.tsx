@@ -13,12 +13,16 @@ export function FileGridItem({
   onSelect,
   onDeleted,
   canWrite = true,
+  blikonId,
+  phoneNumber,
 }: {
   file: DriveFile;
   selected: boolean;
   onSelect: (id: string) => void;
   onDeleted: () => void;
   canWrite?: boolean;
+  blikonId?: string;
+  phoneNumber?: string;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [hovered, setHovered] = useState(false);
@@ -33,7 +37,7 @@ export function FileGridItem({
 
   async function handleDelete(e: React.MouseEvent) {
     e.preventDefault();
-    await deleteFile(file.id);
+    await deleteFile(file.id, blikonId, phoneNumber);
     onDeleted();
   }
 

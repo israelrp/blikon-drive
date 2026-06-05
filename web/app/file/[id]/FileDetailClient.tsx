@@ -8,7 +8,17 @@ import { FileTypeIcon } from "@/components/FileTypeIcon";
 import { ArrowLeft, Download, Trash2, ChevronRight } from "lucide-react";
 import Link from "next/link";
 
-export function FileDetailClient({ file, folderId }: { file: FileDetail; folderId: string }) {
+export function FileDetailClient({
+  file,
+  folderId,
+  blikonId,
+  phoneNumber,
+}: {
+  file: FileDetail;
+  folderId: string;
+  blikonId?: string;
+  phoneNumber?: string;
+}) {
   const router = useRouter();
   const [title, setTitle] = useState(file.title ?? "");
   const [description, setDescription] = useState(file.description ?? "");
@@ -24,13 +34,13 @@ export function FileDetailClient({ file, folderId }: { file: FileDetail; folderI
       title: title || undefined,
       description: description || undefined,
       tags: tags ? tags.split(",").map((t) => t.trim()).filter(Boolean) : [],
-    });
+    }, blikonId, phoneNumber);
     setSaving(false);
   }
 
   async function handleAddComment() {
     if (!newComment.trim()) return;
-    const c = await addComment(file.id, newComment);
+    const c = await addComment(file.id, newComment, blikonId, phoneNumber);
     setComments((p) => [...p, c]);
     setNewComment("");
   }
@@ -42,7 +52,7 @@ export function FileDetailClient({ file, folderId }: { file: FileDetail; folderI
 
   async function handleDelete() {
     if (!confirm("¿Mover a la papelera?")) return;
-    await deleteFile(file.id);
+    await deleteFile(file.id, blikonId, phoneNumber);
     router.push(`/folder/${folderId}`);
   }
 

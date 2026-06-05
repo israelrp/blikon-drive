@@ -9,12 +9,14 @@ export function DropZone({
   onUploaded,
   children,
   blikonId,
+  phoneNumber,
   disabled = false,
 }: {
   coreFolderId: string;
   onUploaded: () => void;
   children: React.ReactNode;
   blikonId?: string;
+  phoneNumber?: string;
   disabled?: boolean;
 }) {
   const [dragging, setDragging] = useState(false);
@@ -40,12 +42,12 @@ export function DropZone({
 
     setUploading(true);
     for (const file of files) {
-      await uploadFile(coreFolderId, file, setProgress, blikonId);
+      await uploadFile(coreFolderId, file, setProgress, blikonId, phoneNumber);
     }
     setUploading(false);
     setProgress(0);
     onUploaded();
-  }, [coreFolderId, onUploaded, blikonId, disabled]);
+  }, [coreFolderId, onUploaded, blikonId, phoneNumber, disabled]);
 
   useEffect(() => {
     window.addEventListener("dragover", handleDragOver);

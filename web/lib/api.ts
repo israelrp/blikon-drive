@@ -73,35 +73,37 @@ export async function getDownloadUrl(id: string): Promise<string> {
 
 export async function updateMetadata(
   id: string,
-  payload: { title?: string; description?: string; tags?: string[] }
+  payload: { title?: string; description?: string; tags?: string[] },
+  blikonId?: string,
+  phoneNumber?: string
 ) {
   const res = await fetch(`${API}/api/files/${id}/metadata`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders(blikonId, phoneNumber) },
     body: JSON.stringify(payload),
   });
   if (!res.ok) throw new Error("Error actualizando metadata");
   return res.json();
 }
 
-export async function addComment(id: string, body: string) {
+export async function addComment(id: string, body: string, blikonId?: string, phoneNumber?: string) {
   const res = await fetch(`${API}/api/files/${id}/comments`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...authHeaders(blikonId, phoneNumber) },
     body: JSON.stringify({ body }),
   });
   if (!res.ok) throw new Error("Error agregando comentario");
   return res.json();
 }
 
-export async function deleteFile(id: string, blikonId?: string) {
-  await fetch(`${API}/api/files/${id}`, { method: "DELETE", headers: blikonHeader(blikonId) });
+export async function deleteFile(id: string, blikonId?: string, phoneNumber?: string) {
+  await fetch(`${API}/api/files/${id}`, { method: "DELETE", headers: authHeaders(blikonId, phoneNumber) });
 }
 
-export async function batchDeleteFiles(ids: string[], blikonId?: string): Promise<number> {
+export async function batchDeleteFiles(ids: string[], blikonId?: string, phoneNumber?: string): Promise<number> {
   const res = await fetch(`${API}/api/files/batch-delete`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...blikonHeader(blikonId) },
+    headers: { "Content-Type": "application/json", ...authHeaders(blikonId, phoneNumber) },
     body: JSON.stringify({ ids }),
   });
   if (!res.ok) throw new Error("Error eliminando archivos");
@@ -118,25 +120,25 @@ export interface DriveFolder {
   fileCount: number;
 }
 
-export async function deleteFolder(id: string, blikonId?: string): Promise<void> {
+export async function deleteFolder(id: string, blikonId?: string, phoneNumber?: string): Promise<void> {
   await fetch(`${API}/api/folders?id=${encodeURIComponent(id)}`, {
     method: "DELETE",
-    headers: blikonHeader(blikonId),
+    headers: authHeaders(blikonId, phoneNumber),
   });
 }
 
-export async function batchDeleteFolders(ids: string[], blikonId?: string): Promise<void> {
+export async function batchDeleteFolders(ids: string[], blikonId?: string, phoneNumber?: string): Promise<void> {
   await fetch(`${API}/api/folders/batch-delete`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...blikonHeader(blikonId) },
+    headers: { "Content-Type": "application/json", ...authHeaders(blikonId, phoneNumber) },
     body: JSON.stringify({ ids }),
   });
 }
 
-export async function ensureFolder(path: string, blikonId?: string, parentId?: string): Promise<DriveFolder> {
+export async function ensureFolder(path: string, blikonId?: string, parentId?: string, phoneNumber?: string): Promise<DriveFolder> {
   const res = await fetch(`${API}/api/folders/ensure`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...blikonHeader(blikonId) },
+    headers: { "Content-Type": "application/json", ...authHeaders(blikonId, phoneNumber) },
     body: JSON.stringify({ path, parentId }),
   });
   if (!res.ok) throw new Error("Error creando folder");
@@ -227,11 +229,13 @@ export async function uploadFile(
   coreFolderId: string,
   file: File,
   onProgress: (pct: number) => void,
-  blikonId?: string
+  blikonId?: string,
+  phoneNumber?: string
 ): Promise<string> {
+  const auth = authHeaders(blikonId, phoneNumber);
   const initRes = await fetch(`${API}/api/files/upload/init`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...blikonHeader(blikonId) },
+    headers: { "Content-Type": "application/json", ...auth },
     body: JSON.stringify({
       coreFolderId,
       fileName: file.name,
@@ -239,6 +243,7 @@ export async function uploadFile(
       sizeBytes: file.size,
     }),
   });
+  if (!initRes.ok) throw new Error("No tienes permiso para subir aquí");
   const { id: fileId } = await initRes.json();
 
   const blockIds: string[] = [];
@@ -254,7 +259,7 @@ export async function uploadFile(
 
     const chunkRes = await fetch(
       `${API}/api/files/upload/${fileId}/chunk?offset=${start}&totalSize=${file.size}`,
-      { method: "POST", headers: blikonHeader(blikonId), body: form }
+      { method: "POST", headers: auth, body: form }
     );
     const { blockId } = await chunkRes.json();
     blockIds.push(blockId);
@@ -263,7 +268,7 @@ export async function uploadFile(
 
   await fetch(`${API}/api/files/upload/${fileId}/commit`, {
     method: "POST",
-    headers: { "Content-Type": "application/json", ...blikonHeader(blikonId) },
+    headers: { "Content-Type": "application/json", ...auth },
     body: JSON.stringify({ blockIds }),
   });
 

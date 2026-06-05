@@ -57,7 +57,7 @@ export function FolderClient({
 
     (async () => {
       // ensureFolder en paralelo — no bloquea la carga de datos
-      ensureFolder(folderId, userInfo?.blikonId).catch(() => {});
+      ensureFolder(folderId, userInfo?.blikonId, undefined, userInfo?.phoneNumber).catch(() => {});
       const [f, sf, bc, access] = await Promise.all([
         getFilesByFolder(folderId, userInfo?.blikonId, userInfo?.phoneNumber).catch(() => []),
         getFolderChildren(folderId, userInfo?.blikonId, userInfo?.phoneNumber).catch(() => []),
@@ -118,8 +118,8 @@ export function FolderClient({
     setDeleting(true);
     try {
       await Promise.all([
-        selectedFiles.size   > 0 ? batchDeleteFiles(Array.from(selectedFiles), userInfo?.blikonId)   : Promise.resolve(),
-        selectedFolders.size > 0 ? batchDeleteFolders(Array.from(selectedFolders), userInfo?.blikonId) : Promise.resolve(),
+        selectedFiles.size   > 0 ? batchDeleteFiles(Array.from(selectedFiles), userInfo?.blikonId, userInfo?.phoneNumber)   : Promise.resolve(),
+        selectedFolders.size > 0 ? batchDeleteFolders(Array.from(selectedFolders), userInfo?.blikonId, userInfo?.phoneNumber) : Promise.resolve(),
       ]);
       clearSelection();
       await refresh();
@@ -135,7 +135,7 @@ export function FolderClient({
       <DriveHeader view={view} onViewChange={setView} coreFolderId={folderId} onUploaded={refresh} userInfo={userInfo} canUpload={canWrite} />
 
       <div className="flex flex-1 min-h-0">
-        <DropZone coreFolderId={folderId} onUploaded={refresh} blikonId={userInfo?.blikonId} disabled={!canWrite}>
+        <DropZone coreFolderId={folderId} onUploaded={refresh} blikonId={userInfo?.blikonId} phoneNumber={userInfo?.phoneNumber} disabled={!canWrite}>
           <main className="flex-1 overflow-y-auto px-6 py-4">
             {/* Breadcrumb */}
             <nav className="flex items-center gap-1 mb-4 text-sm text-[#444746] flex-wrap">
@@ -222,6 +222,7 @@ export function FolderClient({
                             onSelect={handleSelectFolder}
                             onDeleted={refresh}
                             blikonId={userInfo?.blikonId}
+                            phoneNumber={userInfo?.phoneNumber}
                             canWrite={canWrite}
                           />
                         ))}
@@ -237,6 +238,7 @@ export function FolderClient({
                             onSelect={handleSelectFolder}
                             onDeleted={refresh}
                             blikonId={userInfo?.blikonId}
+                            phoneNumber={userInfo?.phoneNumber}
                             canWrite={canWrite}
                           />
                         ))}
@@ -260,6 +262,8 @@ export function FolderClient({
                             onSelect={handleSelectFile}
                             onDeleted={refresh}
                             canWrite={canWrite}
+                            blikonId={userInfo?.blikonId}
+                            phoneNumber={userInfo?.phoneNumber}
                           />
                         ))}
                       </div>
@@ -270,6 +274,8 @@ export function FolderClient({
                         onSelect={handleSelectFile}
                         onDeleted={refresh}
                         canWrite={canWrite}
+                        blikonId={userInfo?.blikonId}
+                        phoneNumber={userInfo?.phoneNumber}
                       />
                     )}
                   </section>

@@ -12,6 +12,7 @@ export function FolderCard({
   onSelect,
   onDeleted,
   blikonId,
+  phoneNumber,
   canWrite = true,
 }: {
   folder:    DriveFolder;
@@ -20,6 +21,7 @@ export function FolderCard({
   onSelect?: (id: string) => void;
   onDeleted?: () => void;
   blikonId?: string;
+  phoneNumber?: string;
   canWrite?: boolean;
 }) {
   const [hovered, setHovered]     = useState(false);
@@ -76,7 +78,7 @@ export function FolderCard({
     setMenuOpen(false);
     setDeleting(true);
     try {
-      await deleteFolder(folder.id, blikonId);
+      await deleteFolder(folder.id, blikonId, phoneNumber);
       onDeleted?.();
     } finally {
       setDeleting(false);

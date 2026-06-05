@@ -13,6 +13,7 @@ interface UserInfo {
   photo:       string;
   blikonId:    string;
   cronoCode:   string;
+  phoneNumber?: string;
 }
 
 export function DriveHeader({
@@ -50,7 +51,7 @@ export function DriveHeader({
     setUploading(true);
     for (const file of Array.from(files)) {
       setProgress(0);
-      await uploadFile(coreFolderId, file, setProgress, userInfo?.blikonId).catch(() => {});
+      await uploadFile(coreFolderId, file, setProgress, userInfo?.blikonId, userInfo?.phoneNumber).catch(() => {});
     }
     setUploading(false);
     setProgress(0);
