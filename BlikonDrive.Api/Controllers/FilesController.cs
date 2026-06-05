@@ -164,7 +164,7 @@ public class FilesController(DriveDbContext db, IBlobStorageService storage, Fil
             .SumAsync(f => f.SizeBytes ?? 0);
         var count = await db.Files.CountAsync(f => f.BlikonId == BlikonId && f.DeletedAt == null);
 
-        const long quota = 15L * 1024 * 1024 * 1024; // 15 GB por usuario (ajustable)
+        const long quota = 10L * 1024 * 1024 * 1024 * 1024; // 10 TB por usuario (ajustable)
         return Ok(new { usedBytes = used, quotaBytes = quota, fileCount = count });
     }
 
