@@ -284,11 +284,11 @@ export function HomeClient({
                 >
                   {view === "grid" ? (
                     <>
-                      <div className="h-28 bg-[#E8F0FE] flex items-end px-3 pb-1 relative">
+                      <div className="h-28 bg-[#E8F0FE] flex items-center justify-center px-3 relative">
                         <span className="absolute top-2 right-2 text-[10px] font-medium px-1.5 py-0.5 rounded-full bg-white/80 text-[#1a73e8]">
                           {sf.permission === "editor" ? "Editor" : "Lector"}
                         </span>
-                        <svg viewBox="0 0 80 60" className="w-full" fill="none">
+                        <svg viewBox="0 0 80 60" className="w-20 h-auto" fill="none">
                           <rect x="0" y="12" width="80" height="48" rx="4" fill="#4285F4" />
                           <rect x="0" y="8" width="36" height="12" rx="3" fill="#4285F4" />
                         </svg>
@@ -473,9 +473,9 @@ function RootFolderItem({
           ${selected ? "border-[#1a73e8] shadow-md" : "border-[#dadce0]"}`}
       >
         {/* Thumbnail folder */}
-        <div className={`h-28 flex items-end px-3 pb-1 relative ${selected ? "bg-[#d2e3fc]" : "bg-[#FFF8E1]"}`}>
+        <div className={`h-28 flex items-center justify-center px-3 relative ${selected ? "bg-[#d2e3fc]" : "bg-[#FFF8E1]"}`}>
           <div className="absolute top-2 left-2 z-10">{checkbox}</div>
-          <svg viewBox="0 0 80 60" className="w-full" fill="none">
+          <svg viewBox="0 0 80 60" className="w-20 h-auto" fill="none">
             <rect x="0" y="12" width="80" height="48" rx="4" fill="#F9AB00" />
             <rect x="0" y="8" width="36" height="12" rx="3" fill="#F9AB00" />
           </svg>
