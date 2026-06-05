@@ -140,17 +140,24 @@ export function FolderClient({
             {/* Breadcrumb */}
             <nav className="flex items-center gap-1 mb-4 text-sm text-[#444746] flex-wrap">
               <Link href="/" className="hover:text-[#1a73e8] transition-colors">Mi Drive</Link>
-              {breadcrumb.map((crumb) => (
-                <span key={crumb.id} className="flex items-center gap-1">
-                  <ChevronRight size={14} className="text-[#9aa0a6]" />
-                  <Link
-                    href={`/folder/${crumb.id}`}
-                    className="hover:text-[#1a73e8] transition-colors font-medium last:text-[#202124] last:pointer-events-none"
-                  >
-                    {crumb.name}
-                  </Link>
-                </span>
-              ))}
+              {breadcrumb.map((crumb, i) => {
+                const isCurrent = i === breadcrumb.length - 1;
+                return (
+                  <span key={crumb.id} className="flex items-center gap-1">
+                    <ChevronRight size={14} className="text-[#9aa0a6]" />
+                    {isCurrent ? (
+                      <span className="font-medium text-[#202124]">{crumb.name}</span>
+                    ) : (
+                      <Link
+                        href={`/folder/${crumb.id}`}
+                        className="hover:text-[#1a73e8] hover:underline transition-colors font-medium"
+                      >
+                        {crumb.name}
+                      </Link>
+                    )}
+                  </span>
+                );
+              })}
               {isShared && (
                 <span className={`ml-2 text-xs font-medium px-2 py-0.5 rounded-full ${canWrite ? "bg-[#e6f4ea] text-[#137333]" : "bg-[#fef7e0] text-[#b06000]"}`}>
                   {canWrite ? "Compartido · Editor" : "Compartido · Solo lectura"}
