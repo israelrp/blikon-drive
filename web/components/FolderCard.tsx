@@ -76,6 +76,7 @@ export function FolderCard({
   async function handleDelete(e: React.MouseEvent) {
     e.preventDefault();
     setMenuOpen(false);
+    if (!confirm(`¿Eliminar la carpeta "${folder.name || folder.id}" y todo su contenido?`)) return;
     setDeleting(true);
     try {
       await deleteFolder(folder.id, blikonId, phoneNumber);

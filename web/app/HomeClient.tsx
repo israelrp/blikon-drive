@@ -112,6 +112,7 @@ export function HomeClient({
 
   async function handleBatchDelete() {
     if (selected.size === 0) return;
+    if (!confirm(`¿Eliminar ${selected.size} carpeta${selected.size > 1 ? "s" : ""} y todo su contenido?`)) return;
     setDeleting(true);
     try {
       await batchDeleteFolders(Array.from(selected), userInfo.blikonId);
@@ -384,6 +385,7 @@ function RootFolderItem({
   async function handleDelete(e: React.MouseEvent) {
     e.preventDefault();
     setMenuOpen(false);
+    if (!confirm(`¿Eliminar la carpeta "${folder.name || folder.id}" y todo su contenido?`)) return;
     setDeleting(true);
     try {
       await onDelete(folder.id);

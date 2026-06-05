@@ -37,6 +37,7 @@ export function FileGridItem({
 
   async function handleDelete(e: React.MouseEvent) {
     e.preventDefault();
+    if (!confirm(`¿Eliminar "${file.title ?? file.name}"?`)) return;
     await deleteFile(file.id, blikonId, phoneNumber);
     onDeleted();
   }

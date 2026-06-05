@@ -129,6 +129,12 @@ export function FolderClient({
 
   async function handleBatchDelete() {
     if (!hasSelection) return;
+    const partes = [
+      selectedFolders.size > 0 ? `${selectedFolders.size} carpeta${selectedFolders.size > 1 ? "s" : ""}` : "",
+      selectedFiles.size   > 0 ? `${selectedFiles.size} archivo${selectedFiles.size > 1 ? "s" : ""}` : "",
+    ].filter(Boolean).join(" y ");
+    const aviso = selectedFolders.size > 0 ? " (las carpetas se eliminan con su contenido)" : "";
+    if (!confirm(`¿Eliminar ${partes}?${aviso}`)) return;
     setDeleting(true);
     try {
       await Promise.all([

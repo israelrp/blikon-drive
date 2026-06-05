@@ -161,6 +161,8 @@ export function FileTableView({
 
   async function handleDelete(e: React.MouseEvent, id: string) {
     e.preventDefault();
+    const f = files.find((x) => x.id === id);
+    if (!confirm(`¿Eliminar "${f?.title || f?.name || "este archivo"}"?`)) return;
     await deleteFile(id, blikonId, phoneNumber);
     onDeleted();
   }
