@@ -55,7 +55,11 @@ function forward(request: NextRequest, profileJson: string, setCookie: boolean) 
 function toLogin(request: NextRequest, pathname: string) {
   const loginUrl = new URL("/login", request.url);
   loginUrl.searchParams.set("return", pathname);
-  return NextResponse.redirect(loginUrl);
+  const res = NextResponse.redirect(loginUrl);
+  // Limpiar el cache del perfil — sin sesión válida no debe sobrevivir
+  // (evita loop: cache stale haría que /login crea que hay sesión).
+  res.cookies.set(PROFILE_COOKIE, "", { path: "/", maxAge: 0 });
+  return res;
 }
 
 export async function middleware(request: NextRequest) {
