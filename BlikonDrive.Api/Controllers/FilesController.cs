@@ -25,33 +25,42 @@ public class FilesController(DriveDbContext db, IBlobStorageService storage, Fil
             ? new string(v.ToString().Where(char.IsDigit).ToArray())
             : "";
 
-    /// Devuelve el BlikonId del DUEÑO si el caller tiene acceso al folder
-    /// (lo posee, o es un folder compartido con su teléfono, o descendiente).
-    /// null si no tiene acceso.
-    private async Task<string?> ResolveOwnerAsync(string coreFolderId)
+    /// Resultado de acceso a un folder: dueño real + si el caller puede escribir.
+    private record Access(string Owner, bool CanWrite);
+
+    /// Resuelve el acceso del caller a un folder:
+    /// - Dueño → (caller, write)
+    /// - Compartido como editor (folder o ancestro) → (dueño, write)
+    /// - Compartido como viewer → (dueño, read-only)
+    /// - Sin acceso → null
+    /// - Folder aún no registrado → (caller, write) (lo está creando)
+    private async Task<Access?> ResolveAccessAsync(string coreFolderId)
     {
         var folder = await db.Folders.FirstOrDefaultAsync(f => f.Id == coreFolderId);
-        if (folder is null) return BlikonId;           // folder aún no registrado → trátalo como propio
-        if (folder.BlikonId == BlikonId) return BlikonId; // es dueño
+        if (folder is null) return new Access(BlikonId, true);
+        if (folder.BlikonId == BlikonId) return new Access(BlikonId, true);
 
-        // ¿Compartido con mi teléfono? (el share o un ancestro)
         if (Phone.Length >= 10)
         {
-            var myShares = await db.FolderShares
+            var shares = await db.FolderShares
                 .Where(s => s.PhoneNumber == Phone)
-                .Select(s => s.FolderId)
+                .Select(s => new { s.FolderId, s.Permission })
                 .ToListAsync();
-            if (myShares.Any(sf => coreFolderId == sf || coreFolderId.StartsWith(sf + "/")))
-                return folder.BlikonId;                 // acceso → dueño real
+            var matches = shares
+                .Where(s => coreFolderId == s.FolderId || coreFolderId.StartsWith(s.FolderId + "/"))
+                .ToList();
+            if (matches.Count > 0)
+                return new Access(folder.BlikonId, matches.Any(s => s.Permission == "editor"));
         }
-        return null;                                    // sin acceso
+        return null;
     }
 
     [HttpGet("folder")]
     public async Task<IActionResult> GetByFolder([FromQuery] string coreFolderId)
     {
-        var owner = await ResolveOwnerAsync(coreFolderId);
-        if (owner is null) return Ok(Array.Empty<object>());
+        var access = await ResolveAccessAsync(coreFolderId);
+        if (access is null) return Ok(Array.Empty<object>());
+        var owner = access.Owner;
 
         var files = await db.Files
             .Where(f => f.BlikonId == owner && f.CoreFolderId == coreFolderId && f.DeletedAt == null)
@@ -77,7 +86,13 @@ public class FilesController(DriveDbContext db, IBlobStorageService storage, Fil
     [HttpPost("upload/init")]
     public async Task<IActionResult> InitUpload([FromBody] InitUploadRequest req)
     {
-        var blikonId = BlikonId;
+        var access = await ResolveAccessAsync(req.CoreFolderId);
+        if (access is null || !access.CanWrite)
+            return StatusCode(403, new { message = "Sin permiso de escritura en este folder" });
+
+        // Los archivos subidos a un folder compartido se guardan bajo el dueño,
+        // así el dueño y demás invitados los ven.
+        var blikonId = access.Owner;
         var blobPath = $"{blikonId}/{req.CoreFolderId}/{Guid.NewGuid()}/{req.FileName}";
 
         var file = new DriveFile
@@ -119,6 +134,10 @@ public class FilesController(DriveDbContext db, IBlobStorageService storage, Fil
     {
         var file = await db.Files.FirstOrDefaultAsync(f => f.Id == fileId);
         if (file is null) return NotFound();
+
+        var access = await ResolveAccessAsync(file.CoreFolderId);
+        if (access is null || !access.CanWrite)
+            return StatusCode(403, new { message = "Sin permiso de escritura" });
 
         await storage.CommitBlocksAsync(file.AzureBlobPath, req.BlockIds);
 
@@ -187,6 +206,9 @@ public class FilesController(DriveDbContext db, IBlobStorageService storage, Fil
     {
         var file = await db.Files.FirstOrDefaultAsync(f => f.Id == id);
         if (file is null) return NotFound();
+        var access = await ResolveAccessAsync(file.CoreFolderId);
+        if (access is null || !access.CanWrite)
+            return StatusCode(403, new { message = "Sin permiso de escritura" });
         file.Title       = req.Title       ?? file.Title;
         file.Description = req.Description ?? file.Description;
         if (req.Tags is not null) file.Tags = req.Tags;
@@ -200,6 +222,9 @@ public class FilesController(DriveDbContext db, IBlobStorageService storage, Fil
     {
         var file = await db.Files.FirstOrDefaultAsync(f => f.Id == id);
         if (file is null) return NotFound();
+        var access = await ResolveAccessAsync(file.CoreFolderId);
+        if (access is null || !access.CanWrite)
+            return StatusCode(403, new { message = "Sin permiso de escritura" });
         var comment = new FileComment
         {
             Id = Guid.NewGuid(), FileId = id,
@@ -213,8 +238,11 @@ public class FilesController(DriveDbContext db, IBlobStorageService storage, Fil
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(Guid id)
     {
-        var file = await db.Files.FirstOrDefaultAsync(f => f.Id == id && f.BlikonId == BlikonId);
+        var file = await db.Files.FirstOrDefaultAsync(f => f.Id == id);
         if (file is null) return NotFound();
+        var access = await ResolveAccessAsync(file.CoreFolderId);
+        if (access is null || !access.CanWrite)
+            return StatusCode(403, new { message = "Sin permiso para eliminar" });
         file.DeletedAt = DateTime.UtcNow;
         await db.SaveChangesAsync();
         return NoContent();
@@ -225,12 +253,26 @@ public class FilesController(DriveDbContext db, IBlobStorageService storage, Fil
     {
         if (req.Ids.Count == 0) return BadRequest();
         var now   = DateTime.UtcNow;
-        var files = await db.Files
-            .Where(f => req.Ids.Contains(f.Id) && f.BlikonId == BlikonId)
-            .ToListAsync();
-        foreach (var f in files) f.DeletedAt = now;
+        var files = await db.Files.Where(f => req.Ids.Contains(f.Id)).ToListAsync();
+
+        // Solo eliminamos aquellos donde el caller tiene permiso de escritura.
+        // Cacheamos el acceso por folder para no resolver el mismo dos veces.
+        var accessCache = new Dictionary<string, bool>();
+        var deleted = 0;
+        foreach (var f in files)
+        {
+            if (!accessCache.TryGetValue(f.CoreFolderId, out var canWrite))
+            {
+                var access = await ResolveAccessAsync(f.CoreFolderId);
+                canWrite = access is not null && access.CanWrite;
+                accessCache[f.CoreFolderId] = canWrite;
+            }
+            if (!canWrite) continue;
+            f.DeletedAt = now;
+            deleted++;
+        }
         await db.SaveChangesAsync();
-        return Ok(new { deleted = files.Count });
+        return Ok(new { deleted });
     }
 }
 

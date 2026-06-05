@@ -12,11 +12,13 @@ export function FileGridItem({
   selected,
   onSelect,
   onDeleted,
+  canWrite = true,
 }: {
   file: DriveFile;
   selected: boolean;
   onSelect: (id: string) => void;
   onDeleted: () => void;
+  canWrite?: boolean;
 }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [hovered, setHovered] = useState(false);
@@ -112,10 +114,14 @@ export function FileGridItem({
                   <Link href={`/file/${file.id}`} className="flex items-center gap-3 px-4 py-2 text-sm text-[#202124] hover:bg-gray-100">
                     <Info size={16} className="text-[#444746]" /> Ver detalles
                   </Link>
-                  <div className="border-t border-[#dadce0] my-1" />
-                  <button onClick={handleDelete} className="flex items-center gap-3 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50">
-                    <Trash2 size={16} /> Eliminar
-                  </button>
+                  {canWrite && (
+                    <>
+                      <div className="border-t border-[#dadce0] my-1" />
+                      <button onClick={handleDelete} className="flex items-center gap-3 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50">
+                        <Trash2 size={16} /> Eliminar
+                      </button>
+                    </>
+                  )}
                 </div>
               </>
             )}

@@ -8,7 +8,7 @@ import { FileTableView } from "@/components/FileTableView";
 import { FolderCard } from "@/components/FolderCard";
 import { DropZone } from "@/components/DropZone";
 import {
-  getFilesByFolder, getFolderChildren, getFolderBreadcrumb, ensureFolder,
+  getFilesByFolder, getFolderChildren, getFolderBreadcrumb, ensureFolder, getFolderAccess,
   batchDeleteFiles, batchDeleteFolders,
   DriveFile, DriveFolder,
 } from "@/lib/api";
@@ -29,6 +29,8 @@ export function FolderClient({
   const [subfolders, setSubfolders] = useState<DriveFolder[]>([]);
   const [breadcrumb, setBreadcrumb] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading]       = useState(true);
+  const [canWrite, setCanWrite]     = useState(true);   // permiso de escritura en este folder
+  const [isShared, setIsShared]     = useState(false);  // folder compartido (no propio)
   const [view, setView]             = useState<"grid" | "list">("grid");
   const [selectedFiles, setSelectedFiles]     = useState<Set<string>>(new Set());
   const [selectedFolders, setSelectedFolders] = useState<Set<string>>(new Set());
@@ -56,15 +58,18 @@ export function FolderClient({
     (async () => {
       // ensureFolder en paralelo — no bloquea la carga de datos
       ensureFolder(folderId, userInfo?.blikonId).catch(() => {});
-      const [f, sf, bc] = await Promise.all([
+      const [f, sf, bc, access] = await Promise.all([
         getFilesByFolder(folderId, userInfo?.blikonId, userInfo?.phoneNumber).catch(() => []),
         getFolderChildren(folderId, userInfo?.blikonId, userInfo?.phoneNumber).catch(() => []),
         getFolderBreadcrumb(folderId, userInfo?.blikonId, userInfo?.phoneNumber).catch(() => []),
+        getFolderAccess(folderId, userInfo?.blikonId, userInfo?.phoneNumber).catch(() => ({ canWrite: true, isShared: false })),
       ]);
       if (cancelled) return;
       setFiles(f);
       setSubfolders(sf);
       setBreadcrumb(bc);
+      setCanWrite(access.canWrite);
+      setIsShared(access.isShared);
       setLoading(false);
     })();
 
@@ -127,10 +132,10 @@ export function FolderClient({
 
   return (
     <div className="flex flex-col h-screen bg-[#f6f8fc]">
-      <DriveHeader view={view} onViewChange={setView} coreFolderId={folderId} onUploaded={refresh} userInfo={userInfo} />
+      <DriveHeader view={view} onViewChange={setView} coreFolderId={folderId} onUploaded={refresh} userInfo={userInfo} canUpload={canWrite} />
 
       <div className="flex flex-1 min-h-0">
-        <DropZone coreFolderId={folderId} onUploaded={refresh} blikonId={userInfo?.blikonId}>
+        <DropZone coreFolderId={folderId} onUploaded={refresh} blikonId={userInfo?.blikonId} disabled={!canWrite}>
           <main className="flex-1 overflow-y-auto px-6 py-4">
             {/* Breadcrumb */}
             <nav className="flex items-center gap-1 mb-4 text-sm text-[#444746] flex-wrap">
@@ -146,6 +151,11 @@ export function FolderClient({
                   </Link>
                 </span>
               ))}
+              {isShared && (
+                <span className={`ml-2 text-xs font-medium px-2 py-0.5 rounded-full ${canWrite ? "bg-[#e6f4ea] text-[#137333]" : "bg-[#fef7e0] text-[#b06000]"}`}>
+                  {canWrite ? "Compartido · Editor" : "Compartido · Solo lectura"}
+                </span>
+              )}
             </nav>
 
             {/* Barra de selección */}
@@ -166,14 +176,16 @@ export function FolderClient({
                   >
                     <CheckSquare size={14} /> Todos
                   </button>
-                  <button
-                    onClick={handleBatchDelete}
-                    disabled={deleting}
-                    className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-600 bg-white hover:bg-red-50 rounded-full border border-red-200 transition-colors disabled:opacity-50"
-                  >
-                    <Trash2 size={14} />
-                    {deleting ? "Eliminando…" : `Eliminar ${totalSelected}`}
-                  </button>
+                  {canWrite && (
+                    <button
+                      onClick={handleBatchDelete}
+                      disabled={deleting}
+                      className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-red-600 bg-white hover:bg-red-50 rounded-full border border-red-200 transition-colors disabled:opacity-50"
+                    >
+                      <Trash2 size={14} />
+                      {deleting ? "Eliminando…" : `Eliminar ${totalSelected}`}
+                    </button>
+                  )}
                   <button
                     onClick={clearSelection}
                     className="w-7 h-7 flex items-center justify-center rounded-full hover:bg-[#d2e3fc] transition-colors"
@@ -210,6 +222,7 @@ export function FolderClient({
                             onSelect={handleSelectFolder}
                             onDeleted={refresh}
                             blikonId={userInfo?.blikonId}
+                            canWrite={canWrite}
                           />
                         ))}
                       </div>
@@ -224,6 +237,7 @@ export function FolderClient({
                             onSelect={handleSelectFolder}
                             onDeleted={refresh}
                             blikonId={userInfo?.blikonId}
+                            canWrite={canWrite}
                           />
                         ))}
                       </div>
@@ -245,6 +259,7 @@ export function FolderClient({
                             selected={selectedFiles.has(f.id)}
                             onSelect={handleSelectFile}
                             onDeleted={refresh}
+                            canWrite={canWrite}
                           />
                         ))}
                       </div>
@@ -254,6 +269,7 @@ export function FolderClient({
                         selected={selectedFiles}
                         onSelect={handleSelectFile}
                         onDeleted={refresh}
+                        canWrite={canWrite}
                       />
                     )}
                   </section>

@@ -211,6 +211,15 @@ export async function getFolderBreadcrumb(id: string, blikonId?: string, phoneNu
   return res.json();
 }
 
+export interface FolderAccess { canWrite: boolean; isShared: boolean; }
+
+export async function getFolderAccess(id: string, blikonId?: string, phoneNumber?: string): Promise<FolderAccess> {
+  const res = await fetch(`${API}/api/folders/access?id=${encodeURIComponent(id)}`,
+    { cache: "no-store", headers: authHeaders(blikonId, phoneNumber) });
+  if (!res.ok) return { canWrite: true, isShared: false };
+  return res.json();
+}
+
 // Upload chunked — 4MB por bloque
 const CHUNK_SIZE = 4 * 1024 * 1024;
 

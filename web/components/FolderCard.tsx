@@ -12,6 +12,7 @@ export function FolderCard({
   onSelect,
   onDeleted,
   blikonId,
+  canWrite = true,
 }: {
   folder:    DriveFolder;
   view?:     "grid" | "list";
@@ -19,6 +20,7 @@ export function FolderCard({
   onSelect?: (id: string) => void;
   onDeleted?: () => void;
   blikonId?: string;
+  canWrite?: boolean;
 }) {
   const [hovered, setHovered]     = useState(false);
   const [menuOpen, setMenuOpen]   = useState(false);
@@ -44,6 +46,7 @@ export function FolderCard({
   }
 
   function handleContextMenu(e: React.MouseEvent) {
+    if (!canWrite) return;   // viewer: sin acciones de escritura
     e.preventDefault();
     openMenu(e.clientX, e.clientY);
   }
@@ -85,7 +88,7 @@ export function FolderCard({
     folder.fileCount  > 0 && `${folder.fileCount} archivo${folder.fileCount > 1 ? "s" : ""}`,
   ].filter(Boolean).join(" · ");
 
-  const contextMenu = menuOpen && (
+  const contextMenu = canWrite && menuOpen && (
     <>
       <div className="fixed inset-0 z-40" onClick={() => setMenuOpen(false)} />
       <div
@@ -189,8 +192,8 @@ export function FolderCard({
         </div>
       </Link>
 
-      {/* Menú ⋮ */}
-      {(hovered || menuOpen) && (
+      {/* Menú ⋮ — solo con permiso de escritura */}
+      {canWrite && (hovered || menuOpen) && (
         <div className="absolute top-2 right-2 z-10">
           <button
             onClick={handleMenuButton}

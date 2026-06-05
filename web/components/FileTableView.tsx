@@ -94,11 +94,13 @@ export function FileTableView({
   selected,
   onSelect,
   onDeleted,
+  canWrite = true,
 }: {
   files: DriveFile[];
   selected: Set<string>;
   onSelect: (id: string) => void;
   onDeleted: () => void;
+  canWrite?: boolean;
 }) {
   const [files, setFiles] = useState<LocalFile[]>(initialFiles.map(initLocal));
   const [editing, setEditing] = useState<{ id: string; field: EditField } | null>(null);
@@ -300,13 +302,17 @@ export function FileTableView({
                     >
                       <Info size={15} className="text-[#444746]" /> Ver detalles
                     </Link>
-                    <div className="border-t border-[#dadce0] my-1" />
-                    <button
-                      onClick={(e) => { handleDelete(e, file.id); setMenuOpen(null); }}
-                      className="flex items-center gap-3 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
-                    >
-                      <Trash2 size={15} /> Eliminar
-                    </button>
+                    {canWrite && (
+                      <>
+                        <div className="border-t border-[#dadce0] my-1" />
+                        <button
+                          onClick={(e) => { handleDelete(e, file.id); setMenuOpen(null); }}
+                          className="flex items-center gap-3 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50"
+                        >
+                          <Trash2 size={15} /> Eliminar
+                        </button>
+                      </>
+                    )}
                   </div>
                 </>
               )}

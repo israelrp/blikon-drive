@@ -21,12 +21,14 @@ export function DriveHeader({
   coreFolderId,
   onUploaded,
   userInfo,
+  canUpload = true,
 }: {
   view:          "grid" | "list";
   onViewChange:  (v: "grid" | "list") => void;
   coreFolderId?: string;
   onUploaded?:   () => void;
   userInfo?:     UserInfo | null;
+  canUpload?:    boolean;
 }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
@@ -120,8 +122,8 @@ export function DriveHeader({
           </button>
         </div>
 
-        {/* Botón Nuevo — solo cuando hay un folder activo */}
-        {coreFolderId && (
+        {/* Botón Nuevo — solo cuando hay folder activo y permiso de escritura */}
+        {coreFolderId && canUpload && (
           <button
             onClick={() => inputRef.current?.click()}
             disabled={uploading}

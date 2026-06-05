@@ -9,26 +9,30 @@ export function DropZone({
   onUploaded,
   children,
   blikonId,
+  disabled = false,
 }: {
   coreFolderId: string;
   onUploaded: () => void;
   children: React.ReactNode;
   blikonId?: string;
+  disabled?: boolean;
 }) {
   const [dragging, setDragging] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
 
   const handleDragOver = useCallback((e: DragEvent) => {
+    if (disabled) return;
     e.preventDefault();
     setDragging(true);
-  }, []);
+  }, [disabled]);
 
   const handleDragLeave = useCallback((e: DragEvent) => {
     if (!(e.relatedTarget instanceof Node)) setDragging(false);
   }, []);
 
   const handleDrop = useCallback(async (e: DragEvent) => {
+    if (disabled) return;
     e.preventDefault();
     setDragging(false);
     const files = Array.from(e.dataTransfer?.files ?? []);
@@ -41,7 +45,7 @@ export function DropZone({
     setUploading(false);
     setProgress(0);
     onUploaded();
-  }, [coreFolderId, onUploaded, blikonId]);
+  }, [coreFolderId, onUploaded, blikonId, disabled]);
 
   useEffect(() => {
     window.addEventListener("dragover", handleDragOver);

@@ -19,30 +19,38 @@ public class FoldersController(DriveDbContext db) : ControllerBase
             ? new string(v.ToString().Where(char.IsDigit).ToArray())
             : "";
 
-    /// BlikonId del dueño si el caller tiene acceso al folder (propio o compartido
-    /// con su teléfono o descendiente de un compartido). null si no tiene acceso.
-    private async Task<string?> ResolveOwnerAsync(string folderId)
+    private record Access(string Owner, bool CanWrite);
+
+    /// Acceso del caller a un folder: dueño real + si puede escribir.
+    /// - Dueño → write. Editor compartido → write. Viewer → read-only.
+    /// - Sin acceso → null. Folder inexistente → (caller, write) (lo está creando).
+    private async Task<Access?> ResolveAccessAsync(string folderId)
     {
         var folder = await db.Folders.FirstOrDefaultAsync(f => f.Id == folderId);
-        if (folder is null) return BlikonId;
-        if (folder.BlikonId == BlikonId) return BlikonId;
+        if (folder is null) return new Access(BlikonId, true);
+        if (folder.BlikonId == BlikonId) return new Access(BlikonId, true);
 
         if (Phone.Length >= 10)
         {
-            var myShares = await db.FolderShares
+            var shares = await db.FolderShares
                 .Where(s => s.PhoneNumber == Phone)
-                .Select(s => s.FolderId)
+                .Select(s => new { s.FolderId, s.Permission })
                 .ToListAsync();
-            if (myShares.Any(sf => folderId == sf || folderId.StartsWith(sf + "/")))
-                return folder.BlikonId;
+            var matches = shares
+                .Where(s => folderId == s.FolderId || folderId.StartsWith(s.FolderId + "/"))
+                .ToList();
+            if (matches.Count > 0)
+                return new Access(folder.BlikonId, matches.Any(s => s.Permission == "editor"));
         }
         return null;
     }
 
+    private async Task<string?> ResolveOwnerAsync(string folderId)
+        => (await ResolveAccessAsync(folderId))?.Owner;
+
     [HttpPost("ensure")]
     public async Task<IActionResult> Ensure([FromBody] EnsureFolderRequest req)
     {
-        var blikonId = BlikonId;
         var segments = req.Path
             .Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
             .Select(s => s.ToLower())
@@ -51,6 +59,9 @@ public class FoldersController(DriveDbContext db) : ControllerBase
         if (segments.Count == 0) return BadRequest("El path no puede estar vacío.");
 
         string? parentId = req.ParentId?.ToLower();
+        // El dueño de los folders nuevos: por defecto el caller (folders raíz propios).
+        // Si se crea bajo un folder existente, se hereda el dueño de ese folder.
+        var ownerBlikonId = BlikonId;
         DriveFolder? leaf = null;
 
         for (int i = 0; i < segments.Count; i++)
@@ -60,15 +71,29 @@ public class FoldersController(DriveDbContext db) : ControllerBase
             var folder = await db.Folders.FindAsync(id);
             if (folder is null)
             {
+                // Crear nuevo. Si hay padre, requiere permiso de escritura y hereda su dueño.
+                if (parentId is not null)
+                {
+                    var access = await ResolveAccessAsync(parentId);
+                    if (access is null || !access.CanWrite)
+                        return StatusCode(403, new { message = "Sin permiso para crear carpetas aquí" });
+                    ownerBlikonId = access.Owner;
+                }
+
                 folder = new DriveFolder
                 {
                     Id       = id,
-                    BlikonId = blikonId,
+                    BlikonId = ownerBlikonId,
                     ParentId = parentId,
                     Name     = segments[i],
                 };
                 db.Folders.Add(folder);
                 await db.SaveChangesAsync();
+            }
+            else
+            {
+                // Ya existe → heredamos su dueño para los hijos que sigan.
+                ownerBlikonId = folder.BlikonId;
             }
 
             parentId = id;
@@ -144,9 +169,27 @@ public class FoldersController(DriveDbContext db) : ControllerBase
         return Ok(folder);
     }
 
+    /// Acceso del caller al folder: si puede escribir y si es compartido (no propio).
+    [HttpGet("access")]
+    public async Task<IActionResult> GetAccess([FromQuery] string id)
+    {
+        var folder = await db.Folders.FirstOrDefaultAsync(f => f.Id == id);
+        var isOwner = folder is null || folder.BlikonId == BlikonId;
+        var access  = await ResolveAccessAsync(id);
+        return Ok(new
+        {
+            canWrite = access is not null && access.CanWrite,
+            isShared = !isOwner && access is not null,
+        });
+    }
+
     [HttpDelete]
     public async Task<IActionResult> Delete([FromQuery] string id)
     {
+        var access = await ResolveAccessAsync(id);
+        if (access is null || !access.CanWrite)
+            return StatusCode(403, new { message = "Sin permiso para eliminar esta carpeta" });
+
         var allIds = new List<string>();
         await CollectDescendants(id, allIds);
 
@@ -168,8 +211,17 @@ public class FoldersController(DriveDbContext db) : ControllerBase
     {
         if (req.Ids.Count == 0) return BadRequest();
 
-        var allIds = new List<string>();
+        // Solo procesamos los folders donde el caller puede escribir.
+        var allowed = new List<string>();
         foreach (var id in req.Ids)
+        {
+            var access = await ResolveAccessAsync(id);
+            if (access is not null && access.CanWrite) allowed.Add(id);
+        }
+        if (allowed.Count == 0) return StatusCode(403, new { message = "Sin permiso para eliminar" });
+
+        var allIds = new List<string>();
+        foreach (var id in allowed)
             await CollectDescendants(id, allIds);
 
         var distinctIds = allIds.Distinct().ToList();
