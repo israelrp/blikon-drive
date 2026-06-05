@@ -166,12 +166,12 @@ export function FileTableView({
   }
 
   return (
-    <div className="bg-white rounded-xl border border-[#dadce0] overflow-hidden">
+    <div className="bg-white rounded-xl border border-[#dadce0] overflow-x-auto">
       {/* Header */}
-      <div className="flex items-center bg-[#f8f9fa] border-b-2 border-[#dadce0] text-xs font-semibold text-[#444746] uppercase tracking-wide select-none">
+      <div className="flex items-center bg-[#f8f9fa] border-b-2 border-[#dadce0] text-xs font-semibold text-[#444746] uppercase tracking-wide select-none min-w-[72rem]">
         <div className="w-10 shrink-0 px-3 py-2.5" />
         <div className="w-10 shrink-0 px-2 py-2.5" />
-        <div className="w-48 shrink-0 px-2 py-2.5 border-l border-[#e8eaed]">Nombre</div>
+        <div className="w-96 shrink-0 px-2 py-2.5 border-l border-[#e8eaed]">Nombre</div>
         <div className="w-44 shrink-0 px-2 py-2.5 border-l border-[#e8eaed]">
           Título <span className="normal-case font-normal text-[#1a73e8]">✎</span>
         </div>
@@ -194,7 +194,7 @@ export function FileTableView({
         return (
           <div
             key={file.id}
-            className={`flex items-center border-b border-[#f0f0f0] last:border-0 transition-colors
+            className={`flex items-center border-b border-[#f0f0f0] last:border-0 transition-colors min-w-[72rem]
               ${isSelected ? "bg-[#e8f0fe]" : i % 2 === 0 ? "bg-white" : "bg-[#fafafa]"}
               hover:bg-[#f6f8fc]`}
           >
@@ -218,8 +218,8 @@ export function FileTableView({
               <FileTypeIcon extension={file.extension} size="sm" />
             </div>
 
-            {/* Nombre — click navega al detalle */}
-            <div className="w-48 shrink-0 border-l border-[#f0f0f0]">
+            {/* Nombre — columna ancha; la tabla scrollea horizontal en mobile */}
+            <div className="w-96 shrink-0 border-l border-[#f0f0f0]">
               <Link href={`/file/${file.id}`}
                 className="block px-2 py-1.5 text-sm text-[#202124] hover:text-[#1a73e8] truncate font-medium"
                 title={file.name}

@@ -36,6 +36,11 @@ export function FolderClient({
   const [selectedFolders, setSelectedFolders] = useState<Set<string>>(new Set());
   const [deleting, setDeleting]     = useState(false);
 
+  // En mobile, por defecto vista de lista (tabla) — se ve el nombre completo.
+  useEffect(() => {
+    if (typeof window !== "undefined" && window.innerWidth < 640) setView("list");
+  }, []);
+
   const refresh = useCallback(async () => {
     const [f, sf] = await Promise.all([
       getFilesByFolder(folderId, userInfo?.blikonId, userInfo?.phoneNumber),

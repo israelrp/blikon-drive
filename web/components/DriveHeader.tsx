@@ -185,7 +185,7 @@ function UserAvatar({
           <div className="absolute right-0 top-11 z-20 w-64 bg-white rounded-2xl shadow-xl border border-[#e8eaed] overflow-hidden">
             {userInfo && (
               <div className="px-4 py-3 border-b border-[#e8eaed]">
-                <p className="text-sm font-medium text-[#202124] truncate">{userInfo.profileName}</p>
+                <p className="text-sm font-medium text-[#202124] truncate">cel-{userInfo.phoneNumber}.com.blog</p>
                 <p className="text-xs text-[#444746] truncate">{userInfo.email}</p>
                 <p className="text-xs font-mono text-[#9aa0a6] mt-0.5 truncate">{userInfo.cronoCode}</p>
               </div>
