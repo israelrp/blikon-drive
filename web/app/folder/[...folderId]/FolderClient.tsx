@@ -12,10 +12,15 @@ import {
   batchDeleteFiles, batchDeleteFolders,
   DriveFile, DriveFolder,
 } from "@/lib/api";
-import { FolderOpen, ChevronRight, Trash2, X, CheckSquare } from "lucide-react";
+import { FolderOpen, ChevronRight, Trash2, X, CheckSquare, FolderPlus, AlertCircle } from "lucide-react";
 
 interface UserInfo {
   blikonId: string; cronoCode: string; profileName: string; email: string; photo: string; phoneNumber: string;
+}
+
+const FOLDER_RE = /^[a-z0-9][a-z0-9-]*$/;
+function slugify(v: string) {
+  return v.toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "").replace(/-+/g, "-").replace(/^-|-$/g, "");
 }
 
 export function FolderClient({
@@ -31,6 +36,10 @@ export function FolderClient({
   const [loading, setLoading]       = useState(true);
   const [canWrite, setCanWrite]     = useState(true);   // permiso de escritura en este folder
   const [isShared, setIsShared]     = useState(false);  // folder compartido (no propio)
+  const [creatingFolder, setCreatingFolder] = useState(false);
+  const [newFolderName, setNewFolderName]   = useState("");
+  const [creatingError, setCreatingError]   = useState<string | null>(null);
+  const [creatingBusy, setCreatingBusy]     = useState(false);
   const [view, setView]             = useState<"grid" | "list">("grid");
   const [selectedFiles, setSelectedFiles]     = useState<Set<string>>(new Set());
   const [selectedFolders, setSelectedFolders] = useState<Set<string>>(new Set());
@@ -133,11 +142,42 @@ export function FolderClient({
     }
   }
 
+  const newFolderSlug = slugify(newFolderName);
+
+  async function handleCreateFolder() {
+    const slug = newFolderSlug;
+    if (slug.length < 2 || !FOLDER_RE.test(slug)) {
+      setCreatingError("Solo minúsculas, números y guiones (mín. 2)");
+      return;
+    }
+    setCreatingBusy(true);
+    setCreatingError(null);
+    try {
+      // Crea el subfolder bajo el folder actual (parentId = folderId).
+      await ensureFolder(slug, userInfo?.blikonId, folderId, userInfo?.phoneNumber);
+      setCreatingFolder(false);
+      setNewFolderName("");
+      await refresh();
+    } catch {
+      setCreatingError("No se pudo crear la carpeta");
+    } finally {
+      setCreatingBusy(false);
+    }
+  }
+
   const isEmpty = files.length === 0 && subfolders.length === 0;
 
   return (
     <div className="flex flex-col h-screen bg-[#f6f8fc]">
-      <DriveHeader view={view} onViewChange={setView} coreFolderId={folderId} onUploaded={refresh} userInfo={userInfo} canUpload={canWrite} />
+      <DriveHeader
+        view={view}
+        onViewChange={setView}
+        coreFolderId={folderId}
+        onUploaded={refresh}
+        onNewFolder={() => { setNewFolderName(""); setCreatingError(null); setCreatingFolder(true); }}
+        userInfo={userInfo}
+        canUpload={canWrite}
+      />
 
       <div className="flex flex-1 min-h-0">
         <DropZone coreFolderId={folderId} onUploaded={refresh} blikonId={userInfo?.blikonId} phoneNumber={userInfo?.phoneNumber} disabled={!canWrite}>
@@ -297,6 +337,55 @@ export function FolderClient({
           </main>
         </DropZone>
       </div>
+
+      {/* Modal — Nueva carpeta dentro de este folder */}
+      {creatingFolder && (
+        <div className="fixed inset-0 bg-black/30 z-50 flex items-center justify-center p-4" onClick={() => setCreatingFolder(false)}>
+          <div className="bg-white rounded-2xl shadow-xl w-full max-w-md p-6 flex flex-col gap-4" onClick={(e) => e.stopPropagation()}>
+            <div className="flex items-center justify-between">
+              <h2 className="text-base font-medium text-[#202124] flex items-center gap-2">
+                <FolderPlus size={18} className="text-[#1a73e8]" /> Nueva carpeta
+              </h2>
+              <button onClick={() => setCreatingFolder(false)} className="w-8 h-8 flex items-center justify-center rounded-full hover:bg-[#f6f8fc]">
+                <X size={16} className="text-[#444746]" />
+              </button>
+            </div>
+
+            <div className="flex flex-col gap-1">
+              <label className="text-xs text-[#444746]">Nombre de la carpeta</label>
+              <input
+                autoFocus
+                value={newFolderName}
+                onChange={(e) => { setNewFolderName(e.target.value); setCreatingError(null); }}
+                onKeyDown={(e) => e.key === "Enter" && handleCreateFolder()}
+                placeholder="mi-subcarpeta"
+                className="w-full px-3 py-2 text-sm border border-[#dadce0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1a73e8]"
+              />
+              {newFolderSlug && (
+                <p className="text-xs text-[#9aa0a6] mt-1 font-mono truncate">{folderId}/{newFolderSlug}</p>
+              )}
+              {creatingError && (
+                <p className="flex items-center gap-1 text-xs text-red-500 mt-1">
+                  <AlertCircle size={12} /> {creatingError}
+                </p>
+              )}
+            </div>
+
+            <div className="flex justify-end gap-2">
+              <button onClick={() => setCreatingFolder(false)} className="px-4 py-2 text-sm text-[#444746] hover:bg-[#f6f8fc] rounded-full">
+                Cancelar
+              </button>
+              <button
+                onClick={handleCreateFolder}
+                disabled={!newFolderSlug || creatingBusy}
+                className="px-4 py-2 text-sm font-medium text-white bg-[#1a73e8] rounded-full hover:bg-[#1557b0] disabled:opacity-40 transition-colors"
+              >
+                {creatingBusy ? "Creando…" : "Crear"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

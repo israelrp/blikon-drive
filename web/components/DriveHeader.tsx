@@ -1,9 +1,9 @@
 "use client";
 
-import { useState, useRef } from "react";
+import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { Search, X, LayoutGrid, List, Plus, Upload, LogOut } from "lucide-react";
+import { Search, X, LayoutGrid, List, Plus, Upload, LogOut, FolderPlus, FileUp } from "lucide-react";
 import { BlikonDriveLogo } from "./BlikonDriveLogo";
 import { uploadFile } from "@/lib/api";
 
@@ -21,6 +21,7 @@ export function DriveHeader({
   onViewChange,
   coreFolderId,
   onUploaded,
+  onNewFolder,
   userInfo,
   canUpload = true,
 }: {
@@ -28,15 +29,27 @@ export function DriveHeader({
   onViewChange:  (v: "grid" | "list") => void;
   coreFolderId?: string;
   onUploaded?:   () => void;
+  onNewFolder?:  () => void;
   userInfo?:     UserInfo | null;
   canUpload?:    boolean;
 }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
   const [q, setQ] = useState("");
   const [focused, setFocused] = useState(false);
   const [uploading, setUploading] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [newMenuOpen, setNewMenuOpen] = useState(false);
+
+  useEffect(() => {
+    if (!newMenuOpen) return;
+    function onDown(e: MouseEvent) {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) setNewMenuOpen(false);
+    }
+    document.addEventListener("mousedown", onDown);
+    return () => document.removeEventListener("mousedown", onDown);
+  }, [newMenuOpen]);
 
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
@@ -123,25 +136,46 @@ export function DriveHeader({
           </button>
         </div>
 
-        {/* Botón Nuevo — ícono solo en mobile, con texto en desktop */}
+        {/* Botón Nuevo — menú con "Nueva carpeta" y "Subir archivos" */}
         {coreFolderId && canUpload && (
-          <button
-            onClick={() => inputRef.current?.click()}
-            disabled={uploading}
-            className="flex items-center gap-2 justify-center w-9 sm:w-auto sm:pl-4 sm:pr-5 h-9 bg-white text-[#202124] text-sm font-medium rounded-full shadow-md hover:shadow-lg active:shadow-sm disabled:opacity-60 transition-all border border-[#dadce0] shrink-0"
-          >
-            {uploading ? (
-              <>
-                <Upload size={15} className="text-[#1a73e8] animate-bounce shrink-0" />
-                <span className="hidden sm:inline text-[#1a73e8]">{progress}%</span>
-              </>
-            ) : (
-              <>
-                <Plus size={15} className="text-[#444746] shrink-0" />
-                <span className="hidden sm:inline">Nuevo</span>
-              </>
+          <div className="relative shrink-0" ref={menuRef}>
+            <button
+              onClick={() => setNewMenuOpen((o) => !o)}
+              disabled={uploading}
+              className="flex items-center gap-2 justify-center w-9 sm:w-auto sm:pl-4 sm:pr-5 h-9 bg-white text-[#202124] text-sm font-medium rounded-full shadow-md hover:shadow-lg active:shadow-sm disabled:opacity-60 transition-all border border-[#dadce0]"
+            >
+              {uploading ? (
+                <>
+                  <Upload size={15} className="text-[#1a73e8] animate-bounce shrink-0" />
+                  <span className="hidden sm:inline text-[#1a73e8]">{progress}%</span>
+                </>
+              ) : (
+                <>
+                  <Plus size={15} className="text-[#444746] shrink-0" />
+                  <span className="hidden sm:inline">Nuevo</span>
+                </>
+              )}
+            </button>
+
+            {newMenuOpen && !uploading && (
+              <div className="absolute right-0 top-11 z-30 w-52 bg-white rounded-xl shadow-xl border border-[#dadce0] py-2">
+                {onNewFolder && (
+                  <button
+                    onClick={() => { setNewMenuOpen(false); onNewFolder(); }}
+                    className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-[#202124] hover:bg-[#f6f8fc]"
+                  >
+                    <FolderPlus size={17} className="text-[#444746]" /> Nueva carpeta
+                  </button>
+                )}
+                <button
+                  onClick={() => { setNewMenuOpen(false); inputRef.current?.click(); }}
+                  className="flex items-center gap-3 w-full px-4 py-2.5 text-sm text-[#202124] hover:bg-[#f6f8fc]"
+                >
+                  <FileUp size={17} className="text-[#444746]" /> Subir archivos
+                </button>
+              </div>
             )}
-          </button>
+          </div>
         )}
 
         {/* Avatar con menú */}
