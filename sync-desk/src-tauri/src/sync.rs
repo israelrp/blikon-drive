@@ -47,23 +47,11 @@ async fn ensure_folder(client: &Client, api_url: &str, blikon_id: &str, path: &s
     }
 }
 
-/// Slugifica un segmento de carpeta igual que el API: minúsculas, espacios→guión,
-/// solo [a-z0-9-]. Evita IDs con espacios/mayúsculas que no coinciden con el server.
+/// Slugifica un segmento de carpeta igual que el API: SOLO minúsculas y números.
+/// Sin guiones — el guión es el separador del sistema de direcciones
+/// (drive-{crono}-folder-folder.com.blog). Debe coincidir con el slug del API/web.
 fn slug_segment(s: &str) -> String {
-    let lower = s.to_lowercase();
-    let mut out = String::with_capacity(lower.len());
-    let mut prev_dash = false;
-    for ch in lower.chars() {
-        if ch.is_ascii_alphanumeric() {
-            out.push(ch);
-            prev_dash = false;
-        } else if ch == '-' || ch == '_' || ch.is_whitespace() {
-            if !prev_dash && !out.is_empty() { out.push('-'); prev_dash = true; }
-        }
-        // otros caracteres se ignoran
-    }
-    while out.ends_with('-') { out.pop(); }
-    out
+    s.to_lowercase().chars().filter(|c| c.is_ascii_alphanumeric()).collect()
 }
 
 /// Carpetas que NUNCA se sincronizan (basura inequívoca: deps, VCS, sistema).

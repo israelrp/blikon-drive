@@ -48,17 +48,27 @@ public class FoldersController(DriveDbContext db) : ControllerBase
     private async Task<string?> ResolveOwnerAsync(string folderId)
         => (await ResolveAccessAsync(folderId))?.Owner;
 
+    // Solo minúsculas y números. SIN guiones: el guión es el separador del
+    // sistema de direcciones (drive-{crono}-folder-folder.com.blog).
+    private static string SlugSegment(string s) =>
+        new string(s.ToLowerInvariant().Where(c => c is >= 'a' and <= 'z' or >= '0' and <= '9').ToArray());
+
     [HttpPost("ensure")]
     public async Task<IActionResult> Ensure([FromBody] EnsureFolderRequest req)
     {
         var segments = req.Path
             .Split('/', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .Select(s => s.ToLower())
+            .Select(SlugSegment)
+            .Where(s => s.Length > 0)
             .ToList();
 
         if (segments.Count == 0) return BadRequest("El path no puede estar vacío.");
 
-        string? parentId = req.ParentId?.ToLower();
+        // El parentId también debe ir ya normalizado (sus segmentos sin guiones).
+        string? parentId = string.IsNullOrEmpty(req.ParentId)
+            ? null
+            : string.Join("/", req.ParentId.Split('/', StringSplitOptions.RemoveEmptyEntries).Select(SlugSegment).Where(s => s.Length > 0));
+        if (parentId == "") parentId = null;
         // El dueño de los folders nuevos: por defecto el caller (folders raíz propios).
         // Si se crea bajo un folder existente, se hereda el dueño de ese folder.
         var ownerBlikonId = BlikonId;

@@ -19,9 +19,10 @@ interface UserInfo {
   blikonId: string; cronoCode: string; profileName: string; email: string; photo: string; phoneNumber: string;
 }
 
-const FOLDER_RE = /^[a-z0-9][a-z0-9-]*$/;
+// Sin guiones — el guión es el separador del sistema de direcciones.
+const FOLDER_RE = /^[a-z0-9]+$/;
 function slugify(v: string) {
-  return v.toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "").replace(/-+/g, "-").replace(/^-|-$/g, "");
+  return v.toLowerCase().trim().replace(/[^a-z0-9]/g, "");
 }
 
 export function FolderClient({
@@ -156,7 +157,7 @@ export function FolderClient({
   async function handleCreateFolder() {
     const slug = newFolderSlug;
     if (slug.length < 2 || !FOLDER_RE.test(slug)) {
-      setCreatingError("Solo minúsculas, números y guiones (mín. 2)");
+      setCreatingError("Solo minúsculas y números, sin guiones (mín. 2)");
       return;
     }
     setCreatingBusy(true);
@@ -367,7 +368,7 @@ export function FolderClient({
                 value={newFolderName}
                 onChange={(e) => { setNewFolderName(e.target.value); setCreatingError(null); }}
                 onKeyDown={(e) => e.key === "Enter" && handleCreateFolder()}
-                placeholder="mi-subcarpeta"
+                placeholder="misubcarpeta"
                 className="w-full px-3 py-2 text-sm border border-[#dadce0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1a73e8]"
               />
               {newFolderSlug && (

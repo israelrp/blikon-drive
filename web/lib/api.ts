@@ -234,9 +234,10 @@ export async function getFolderAccess(id: string, blikonId?: string, phoneNumber
 // Upload chunked — 4MB por bloque
 const CHUNK_SIZE = 4 * 1024 * 1024;
 
-// Normaliza un segmento de carpeta igual que el API (minúsculas, guiones).
+// Normaliza un segmento de carpeta igual que el API: solo minúsculas y números
+// (sin guiones — el guión es el separador del sistema de direcciones).
 function slugSegment(s: string): string {
-  return s.toLowerCase().trim().replace(/\s+/g, "-").replace(/[^a-z0-9-]/g, "").replace(/-+/g, "-").replace(/^-|-$/g, "");
+  return s.toLowerCase().trim().replace(/[^a-z0-9]/g, "");
 }
 
 export interface UploadItem { file: File; relativePath: string; }

@@ -16,24 +16,22 @@ interface UserInfo {
   blikonId: string; cronoCode: string; profileName: string; email: string; photo: string; phoneNumber: string;
 }
 
-// Reglas: minúsculas, letras, números y guiones. Empieza con letra o número.
-const FOLDER_RE = /^[a-z0-9][a-z0-9-]*$/;
+// Reglas: solo minúsculas y números. SIN guiones — el guión es el separador
+// del sistema de direcciones (drive-{crono}-folder-folder.com.blog).
+const FOLDER_RE = /^[a-z0-9]+$/;
 
 function slugify(value: string) {
   return value
     .toLowerCase()
     .trim()
-    .replace(/\s+/g, "-")          // espacios → guión
-    .replace(/[^a-z0-9-]/g, "")   // eliminar caracteres no permitidos
-    .replace(/-+/g, "-")           // guiones múltiples → uno
-    .replace(/^-|-$/g, "");        // quitar guiones al inicio/fin
+    .replace(/[^a-z0-9]/g, "");   // solo letras y números — quita guiones, espacios, etc.
 }
 
 function validateName(name: string): string | null {
   if (!name) return "El nombre es requerido";
   if (name.length < 2) return "Mínimo 2 caracteres";
   if (name.length > 50) return "Máximo 50 caracteres";
-  if (!FOLDER_RE.test(name)) return "Solo minúsculas, números y guiones";
+  if (!FOLDER_RE.test(name)) return "Solo minúsculas y números (sin guiones ni espacios)";
   return null;
 }
 
@@ -198,7 +196,7 @@ export function HomeClient({
                   value={input}
                   onChange={(e) => handleInput(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && handleCreate()}
-                  placeholder="mi-proyecto"
+                  placeholder="miproyecto"
                   className="w-full px-3 py-2 text-sm border border-[#dadce0] rounded-lg focus:outline-none focus:ring-2 focus:ring-[#1a73e8]"
                 />
                 {/* Preview del slug */}
@@ -213,7 +211,7 @@ export function HomeClient({
                   </p>
                 )}
                 <p className="text-xs text-[#9aa0a6] mt-1">
-                  Solo minúsculas, números y guiones. Ej: <span className="font-mono">mi-proyecto</span>
+                  Solo minúsculas y números (sin guiones). Ej: <span className="font-mono">miproyecto</span>
                 </p>
               </div>
 
