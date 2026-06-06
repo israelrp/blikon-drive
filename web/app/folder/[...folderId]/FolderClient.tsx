@@ -1,18 +1,18 @@
 "use client";
 
 import { useState, useCallback, useEffect } from "react";
-import Link from "next/link";
 import { DriveHeader } from "@/components/DriveHeader";
 import { FileGridItem } from "@/components/FileGridItem";
 import { FileTableView } from "@/components/FileTableView";
 import { FolderCard } from "@/components/FolderCard";
 import { DropZone } from "@/components/DropZone";
+import { AddressBar } from "@/components/AddressBar";
 import {
   getFilesByFolder, getFolderChildren, getFolderBreadcrumb, ensureFolder, getFolderAccess,
   batchDeleteFiles, batchDeleteFolders,
   DriveFile, DriveFolder,
 } from "@/lib/api";
-import { FolderOpen, ChevronRight, Trash2, X, CheckSquare, FolderPlus, AlertCircle } from "lucide-react";
+import { FolderOpen, Trash2, X, CheckSquare, FolderPlus, AlertCircle } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmDialog";
 
 interface UserInfo {
@@ -192,33 +192,13 @@ export function FolderClient({
       <div className="flex flex-1 min-h-0">
         <DropZone coreFolderId={folderId} onUploaded={refresh} blikonId={userInfo?.blikonId} phoneNumber={userInfo?.phoneNumber} disabled={!canWrite}>
           <main className="flex-1 min-w-0 overflow-y-auto px-3 sm:px-6 py-4">
-            {/* Breadcrumb */}
-            <nav className="flex items-center gap-1 mb-4 text-sm text-[#444746] flex-wrap">
-              <Link href="/" className="hover:text-[#1a73e8] transition-colors">Mi Drive</Link>
-              {breadcrumb.map((crumb, i) => {
-                const isCurrent = i === breadcrumb.length - 1;
-                return (
-                  <span key={crumb.id} className="flex items-center gap-1">
-                    <ChevronRight size={14} className="text-[#9aa0a6]" />
-                    {isCurrent ? (
-                      <span className="font-medium text-[#202124]">{crumb.name}</span>
-                    ) : (
-                      <Link
-                        href={`/folder/${crumb.id}`}
-                        className="hover:text-[#1a73e8] hover:underline transition-colors font-medium"
-                      >
-                        {crumb.name}
-                      </Link>
-                    )}
-                  </span>
-                );
-              })}
-              {isShared && (
-                <span className={`ml-2 text-xs font-medium px-2 py-0.5 rounded-full ${canWrite ? "bg-[#e6f4ea] text-[#137333]" : "bg-[#fef7e0] text-[#b06000]"}`}>
-                  {canWrite ? "Compartido · Editor" : "Compartido · Solo lectura"}
-                </span>
-              )}
-            </nav>
+            {/* Barra de dirección (estilo navegador) — navegación interna */}
+            <AddressBar
+              cronoCode={userInfo?.cronoCode ?? ""}
+              breadcrumb={breadcrumb}
+              isShared={isShared}
+              canWrite={canWrite}
+            />
 
             {/* Barra de selección */}
             {hasSelection && (

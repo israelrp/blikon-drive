@@ -7,6 +7,7 @@ import { FolderOpen, Plus, X, AlertCircle, Trash2, CheckSquare, CheckCircle2, Sh
 import { DriveHeader } from "@/components/DriveHeader";
 import { ShareDialog } from "@/components/ShareDialog";
 import { useConfirm } from "@/components/ConfirmDialog";
+import { AddressBar } from "@/components/AddressBar";
 import { folderSubdomainUrl } from "@/lib/utils";
 import {
   ensureFolder, deleteFolder, batchDeleteFolders,
@@ -135,7 +136,10 @@ export function HomeClient({
     <div className="min-h-screen bg-[#f6f8fc]">
       <DriveHeader view={view} onViewChange={setView} userInfo={userInfo} />
 
-      <main className="max-w-6xl mx-auto px-6 py-8">
+      <main className="max-w-6xl mx-auto px-4 sm:px-6 py-8">
+        {/* Barra de dirección (raíz) */}
+        <AddressBar cronoCode={userInfo.cronoCode} breadcrumb={[]} />
+
         {/* Título + botón nuevo */}
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-xl font-medium text-[#202124]">Mis folders</h1>
