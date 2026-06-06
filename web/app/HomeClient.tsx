@@ -78,6 +78,7 @@ export function HomeClient({
   }
 
   async function handleCreate() {
+    if (loading) return;            // evita doble submit (Enter + clic / doble clic)
     const name = slug;
     const err = validateName(name);
     if (err) { setError(err); return; }

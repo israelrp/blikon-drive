@@ -171,6 +171,7 @@ export function FolderClient({
   const newFolderSlug = slugify(newFolderName);
 
   async function handleCreateFolder() {
+    if (creatingBusy) return;       // evita doble submit (Enter + clic / doble clic)
     const slug = newFolderSlug;
     if (slug.length < 2 || !FOLDER_RE.test(slug)) {
       setCreatingError("Solo minúsculas y números, sin guiones (mín. 2)");

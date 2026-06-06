@@ -98,7 +98,19 @@ public class FoldersController(DriveDbContext db) : ControllerBase
                     Name     = segments[i],
                 };
                 db.Folders.Add(folder);
-                await db.SaveChangesAsync();
+                try
+                {
+                    await db.SaveChangesAsync();
+                }
+                catch (DbUpdateException)
+                {
+                    // Carrera: otra petición concurrente creó este mismo folder.
+                    // Soltamos la entidad en estado Added y recuperamos la existente.
+                    db.Entry(folder).State = EntityState.Detached;
+                    var existing = await db.Folders.FindAsync(id);
+                    if (existing is null) throw; // si de verdad no existe, propagar el error
+                    folder = existing;
+                }
             }
             else
             {
@@ -110,7 +122,10 @@ public class FoldersController(DriveDbContext db) : ControllerBase
             leaf     = folder;
         }
 
-        return Ok(leaf);
+        // Nunca devolvemos la entidad EF cruda (navegaciones / ciclos): un DTO plano.
+        var childCount = await db.Folders.CountAsync(c => c.ParentId == leaf!.Id);
+        var fileCount  = await db.Files.CountAsync(x => x.CoreFolderId == leaf!.Id);
+        return Ok(new FolderDto(leaf!.Id, leaf.Name, leaf.ParentId, leaf.CreatedAt, childCount, fileCount));
     }
 
     [HttpGet]
