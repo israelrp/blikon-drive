@@ -7,6 +7,7 @@ import { FolderOpen, Plus, X, AlertCircle, Trash2, CheckSquare, CheckCircle2, Sh
 import { DriveHeader } from "@/components/DriveHeader";
 import { ShareDialog } from "@/components/ShareDialog";
 import { useConfirm } from "@/components/ConfirmDialog";
+import { folderSubdomainUrl } from "@/lib/utils";
 import {
   ensureFolder, deleteFolder, batchDeleteFolders,
   getSharedWithMe, DriveFolder, SharedFolder,
@@ -202,7 +203,7 @@ export function HomeClient({
                 {/* Preview del slug */}
                 {slug && (
                   <p className="text-xs text-[#444746] mt-1">
-                    URL: <span className="font-mono text-[#1a73e8]">drive-{userInfo.cronoCode}-{slug}.com.blog</span>
+                    URL: <span className="font-mono text-[#1a73e8]">{folderSubdomainUrl(userInfo.cronoCode, slug).replace("https://", "")}</span>
                   </p>
                 )}
                 {error && (
@@ -326,6 +327,7 @@ export function HomeClient({
           folderId={shareTarget.id}
           folderName={shareTarget.name || shareTarget.id}
           blikonId={userInfo.blikonId}
+          cronoCode={userInfo.cronoCode}
           onClose={() => setShareTarget(null)}
         />
       )}
@@ -403,7 +405,7 @@ function RootFolderItem({
     }
   }
 
-  const url = `drive-${cronoCode}-${folder.id}.com.blog`;
+  const url = folderSubdomainUrl(cronoCode, folder.id).replace("https://", "");
 
   const contextMenu = menuOpen && (
     <>

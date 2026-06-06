@@ -1,3 +1,12 @@
+// URL pública por subdominio de un folder: drive-{crono}-{f1}-{f2}.com.blog
+// Los nombres de folder no tienen guiones, así que "/" del path → "-".
+export function folderSubdomainUrl(cronoCode: string, folderId: string): string {
+  const path = folderId.split("/").filter(Boolean).join("-");
+  return path
+    ? `https://drive-${cronoCode}-${path}.com.blog`
+    : `https://drive-${cronoCode}.com.blog`;
+}
+
 export function formatBytes(bytes: number | null): string {
   if (!bytes) return "—";
   if (bytes < 1024) return `${bytes} B`;

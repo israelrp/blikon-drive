@@ -1,21 +1,24 @@
 "use client";
 
 import { useState, useEffect, useCallback } from "react";
-import { X, UserPlus, Trash2, Phone, Loader2, Check } from "lucide-react";
+import { X, UserPlus, Trash2, Phone, Loader2, Check, Link2, Copy } from "lucide-react";
 import {
   FolderShare, SharePermission,
   getFolderShares, shareFolder, unshareFolder,
 } from "@/lib/api";
+import { folderSubdomainUrl } from "@/lib/utils";
 
 export function ShareDialog({
   folderId,
   folderName,
   blikonId,
+  cronoCode,
   onClose,
 }: {
   folderId: string;
   folderName: string;
   blikonId?: string;
+  cronoCode?: string;
   onClose: () => void;
 }) {
   const [shares, setShares]       = useState<FolderShare[]>([]);
@@ -24,6 +27,14 @@ export function ShareDialog({
   const [permission, setPermission] = useState<SharePermission>("viewer");
   const [sharing, setSharing]     = useState(false);
   const [error, setError]         = useState<string | null>(null);
+  const [copied, setCopied]       = useState(false);
+
+  const shareUrl = cronoCode ? folderSubdomainUrl(cronoCode, folderId) : "";
+
+  async function copyUrl() {
+    if (!shareUrl) return;
+    try { await navigator.clipboard.writeText(shareUrl); setCopied(true); setTimeout(() => setCopied(false), 1500); } catch {}
+  }
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -69,6 +80,17 @@ export function ShareDialog({
             <X size={16} className="text-[#444746]" />
           </button>
         </div>
+
+        {/* Enlace del folder (subdominio) */}
+        {shareUrl && (
+          <div className="flex items-center gap-2 px-3 py-2 bg-[#f6f8fc] rounded-lg border border-[#dadce0]">
+            <Link2 size={14} className="text-[#9aa0a6] shrink-0" />
+            <span className="flex-1 text-xs font-mono text-[#444746] truncate">{shareUrl.replace("https://", "")}</span>
+            <button onClick={copyUrl} className="flex items-center gap-1 text-xs text-[#1a73e8] hover:underline shrink-0">
+              {copied ? <><Check size={12} /> Copiado</> : <><Copy size={12} /> Copiar</>}
+            </button>
+          </div>
+        )}
 
         {/* Agregar persona por teléfono */}
         <div className="flex flex-col gap-2">

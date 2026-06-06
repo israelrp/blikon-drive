@@ -11,21 +11,25 @@ export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const host         = request.headers.get("host") ?? "";
 
-  // ── Reescritura de subdominio drive-{cuenta}.com.blog ───────────────────────
-  const driveMatch = host.match(/^drive-(.+)\.com\.blog$/);
-  if (driveMatch && pathname === "/") {
-    const url = request.nextUrl.clone();
-    url.pathname = `/folder/${driveMatch[1]}`;
-    return NextResponse.rewrite(url);
-  }
-
-  // ── Recursos estáticos y rutas API → sin auth ───────────────────────────────
+  // ── Recursos estáticos y rutas API → sin auth ni reescritura ────────────────
   if (
     PUBLIC_PATHS.some((p) => pathname.startsWith(p)) ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/api")
   ) {
     return NextResponse.next();
+  }
+
+  // ── Parsear subdominio drive-{cronoCode}-{folder}-{folder}.com.blog ─────────
+  // Los nombres de folder no tienen guiones, así que el guión separa: el primer
+  // segmento es el cronoCode (se ignora en el routing — el folder se resuelve por
+  // la sesión), el resto son los niveles del path. Solo reescribe en la raíz "/".
+  let rewriteTo: string | null = null;
+  const driveMatch = host.match(/^drive-(.+)\.com\.blog$/);
+  if (driveMatch && pathname === "/") {
+    const segs = driveMatch[1].split("-").filter(Boolean);
+    const folderSegs = segs.slice(1); // saltar cronoCode
+    if (folderSegs.length > 0) rewriteTo = `/folder/${folderSegs.join("/")}`;
   }
 
   // ── Dev: cookie simulada → /login ───────────────────────────────────────────
@@ -35,7 +39,7 @@ export function middleware(request: NextRequest) {
       loginUrl.searchParams.set("return", pathname);
       return NextResponse.redirect(loginUrl);
     }
-    return NextResponse.next();
+    return applyRewrite(request, rewriteTo);
   }
 
   // ── Prod: sin token (ni access ni refresh) → directo a ValidaCel ────────────
@@ -51,7 +55,14 @@ export function middleware(request: NextRequest) {
     return res;
   }
 
-  return NextResponse.next();
+  return applyRewrite(request, rewriteTo);
+}
+
+function applyRewrite(request: NextRequest, rewriteTo: string | null) {
+  if (!rewriteTo) return NextResponse.next();
+  const url = request.nextUrl.clone();
+  url.pathname = rewriteTo;
+  return NextResponse.rewrite(url);
 }
 
 export const config = {
