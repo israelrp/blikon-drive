@@ -12,8 +12,9 @@ import {
   batchDeleteFiles, batchDeleteFolders,
   DriveFile, DriveFolder,
 } from "@/lib/api";
-import { FolderOpen, Trash2, X, CheckSquare, FolderPlus, AlertCircle } from "lucide-react";
+import { FolderOpen, Trash2, X, CheckSquare, FolderPlus, AlertCircle, Lock } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmDialog";
+import { useNav } from "@/app/NavContext";
 
 interface UserInfo {
   blikonId: string; cronoCode: string; profileName: string; email: string; photo: string; phoneNumber: string;
@@ -33,12 +34,14 @@ export function FolderClient({
   userInfo?: UserInfo | null;
 }) {
   const confirm = useConfirm();
+  const { openFolder } = useNav();
   const [files, setFiles]           = useState<DriveFile[]>([]);
   const [subfolders, setSubfolders] = useState<DriveFolder[]>([]);
   const [breadcrumb, setBreadcrumb] = useState<{ id: string; name: string }[]>([]);
   const [loading, setLoading]       = useState(true);
   const [canWrite, setCanWrite]     = useState(true);   // permiso de escritura en este folder
   const [isShared, setIsShared]     = useState(false);  // folder compartido (no propio)
+  const [noAccess, setNoAccess]     = useState(false);  // sin acceso (ni dueño ni compartido)
   const [creatingFolder, setCreatingFolder] = useState(false);
   const [newFolderName, setNewFolderName]   = useState("");
   const [creatingError, setCreatingError]   = useState<string | null>(null);
@@ -62,31 +65,42 @@ export function FolderClient({
     setSubfolders(sf);
   }, [folderId, userInfo?.blikonId, userInfo?.phoneNumber]);
 
-  // Carga inicial client-side — la navegación es instantánea y los datos llegan después.
+  // Carga inicial client-side. Verifica acceso ANTES de cargar contenido —
+  // así, entrando por subdominio, se valida que la cuenta (teléfono) tenga
+  // permiso. La carpeta no se crea por visitar la URL (se crea explícito).
   useEffect(() => {
     let cancelled = false;
     setLoading(true);
-    // Reset al cambiar de folder para no mostrar contenido viejo
+    setNoAccess(false);
     setFiles([]);
     setSubfolders([]);
     setSelectedFiles(new Set());
     setSelectedFolders(new Set());
 
     (async () => {
-      // ensureFolder en paralelo — no bloquea la carga de datos
-      ensureFolder(folderId, userInfo?.blikonId, undefined, userInfo?.phoneNumber).catch(() => {});
-      const [f, sf, bc, access] = await Promise.all([
+      const access = await getFolderAccess(folderId, userInfo?.blikonId, userInfo?.phoneNumber)
+        .catch(() => ({ hasAccess: true, exists: true, canWrite: true, isShared: false }));
+      if (cancelled) return;
+
+      // Sin acceso (ni dueño ni compartido con tu teléfono) → bloquear
+      if (access.exists && !access.hasAccess) {
+        setNoAccess(true);
+        setCanWrite(false);
+        setLoading(false);
+        return;
+      }
+      setCanWrite(access.canWrite);
+      setIsShared(access.isShared);
+
+      const [f, sf, bc] = await Promise.all([
         getFilesByFolder(folderId, userInfo?.blikonId, userInfo?.phoneNumber).catch(() => []),
         getFolderChildren(folderId, userInfo?.blikonId, userInfo?.phoneNumber).catch(() => []),
         getFolderBreadcrumb(folderId, userInfo?.blikonId, userInfo?.phoneNumber).catch(() => []),
-        getFolderAccess(folderId, userInfo?.blikonId, userInfo?.phoneNumber).catch(() => ({ canWrite: true, isShared: false })),
       ]);
       if (cancelled) return;
       setFiles(f);
       setSubfolders(sf);
       setBreadcrumb(bc);
-      setCanWrite(access.canWrite);
-      setIsShared(access.isShared);
       setLoading(false);
     })();
 
@@ -238,7 +252,21 @@ export function FolderClient({
               </div>
             )}
 
-            {loading ? (
+            {noAccess ? (
+              <div className="flex flex-col items-center justify-center h-80 gap-4 text-[#444746]">
+                <Lock size={56} strokeWidth={1} className="text-[#dadce0]" />
+                <div className="text-center">
+                  <p className="text-base font-medium text-[#202124]">No tienes acceso a esta carpeta</p>
+                  <p className="text-sm mt-1">El dueño debe compartirla con tu número de teléfono.</p>
+                </div>
+                <button
+                  onClick={() => openFolder(null)}
+                  className="mt-2 px-4 py-2 bg-[#1a73e8] text-white text-sm font-medium rounded-full hover:bg-[#1557b0] transition-colors"
+                >
+                  Ir a Mi Drive
+                </button>
+              </div>
+            ) : loading ? (
               <FolderSkeleton view={view} />
             ) : isEmpty ? (
               <div className="flex flex-col items-center justify-center h-80 gap-4 text-[#444746]">

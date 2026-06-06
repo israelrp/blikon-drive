@@ -186,10 +186,13 @@ public class FoldersController(DriveDbContext db) : ControllerBase
         var folder = await db.Folders.FirstOrDefaultAsync(f => f.Id == id);
         var isOwner = folder is null || folder.BlikonId == BlikonId;
         var access  = await ResolveAccessAsync(id);
+        // existe = el folder está registrado (para distinguir "no existe" de "sin acceso")
         return Ok(new
         {
-            canWrite = access is not null && access.CanWrite,
-            isShared = !isOwner && access is not null,
+            hasAccess = access is not null,           // dueño o compartido con tu teléfono
+            exists    = folder is not null,
+            canWrite  = access is not null && access.CanWrite,
+            isShared  = !isOwner && access is not null,
         });
     }
 

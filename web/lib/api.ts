@@ -222,12 +222,12 @@ export async function getFolderBreadcrumb(id: string, blikonId?: string, phoneNu
   return res.json();
 }
 
-export interface FolderAccess { canWrite: boolean; isShared: boolean; }
+export interface FolderAccess { hasAccess: boolean; exists: boolean; canWrite: boolean; isShared: boolean; }
 
 export async function getFolderAccess(id: string, blikonId?: string, phoneNumber?: string): Promise<FolderAccess> {
   const res = await fetch(`${API}/api/folders/access?id=${encodeURIComponent(id)}`,
     { cache: "no-store", headers: authHeaders(blikonId, phoneNumber) });
-  if (!res.ok) return { canWrite: true, isShared: false };
+  if (!res.ok) return { hasAccess: true, exists: true, canWrite: true, isShared: false };
   return res.json();
 }
 
