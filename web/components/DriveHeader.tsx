@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Search, X, LayoutGrid, List, Plus, Upload, LogOut, FolderPlus, FileUp, FolderUp, HardDrive } from "lucide-react";
 import { BlikonDriveLogo } from "./BlikonDriveLogo";
-import { uploadFile, uploadFolderFiles, getStorageUsage, StorageUsage } from "@/lib/api";
+import { uploadFolderFiles, getStorageUsage, StorageUsage } from "@/lib/api";
 import { formatBytes } from "@/lib/utils";
 
 interface UserInfo {
@@ -62,15 +62,21 @@ export function DriveHeader({
   }
 
   async function handleFiles(files: FileList | null) {
-    if (!files || !coreFolderId) return;
+    if (!files || !files.length || !coreFolderId) return;
+    const items = Array.from(files).map((f) => ({ file: f, relativePath: f.name }));
     setUploading(true);
-    for (const file of Array.from(files)) {
-      setProgress(0);
-      await uploadFile(coreFolderId, file, setProgress, userInfo?.blikonId, userInfo?.phoneNumber).catch(() => {});
-    }
-    setUploading(false);
     setProgress(0);
-    onUploaded?.();
+    try {
+      await uploadFolderFiles(
+        coreFolderId, items,
+        (done, total) => setProgress(Math.round((done / total) * 100)),
+        userInfo?.blikonId, userInfo?.phoneNumber,
+      );
+    } finally {
+      setUploading(false);
+      setProgress(0);
+      onUploaded?.();
+    }
   }
 
   // Subir una carpeta completa (input con webkitdirectory) — preserva estructura

@@ -241,10 +241,24 @@ function slugSegment(s: string): string {
 
 export interface UploadItem { file: File; relativePath: string; }
 
+// Ejecuta `worker` sobre `items` con como máximo `concurrency` en paralelo.
+async function runPool<T>(items: T[], concurrency: number, worker: (item: T) => Promise<void>): Promise<void> {
+  let idx = 0;
+  async function lane() {
+    while (idx < items.length) {
+      const i = idx++;
+      await worker(items[i]);
+    }
+  }
+  await Promise.all(Array.from({ length: Math.min(concurrency, items.length) }, lane));
+}
+
 /**
  * Sube una lista de archivos preservando su estructura de carpetas.
  * `relativePath` es la ruta del archivo dentro del folder arrastrado/seleccionado
  * (ej. "miCarpeta/sub/archivo.txt"). Crea los subfolders bajo `baseFolderId`.
+ * Asegura los folders primero (secuencial, evita carreras), luego sube los
+ * archivos en paralelo (pool de concurrencia) para mayor velocidad.
  */
 export async function uploadFolderFiles(
   baseFolderId: string,
@@ -252,23 +266,31 @@ export async function uploadFolderFiles(
   onProgress: (done: number, total: number, name: string) => void,
   blikonId?: string,
   phoneNumber?: string,
+  concurrency = 5,
 ): Promise<void> {
-  const ensured = new Set<string>();
-  let done = 0;
-  for (const { file, relativePath } of items) {
-    const segs   = relativePath.split("/");
-    const dirSeg = segs.slice(0, -1).map(slugSegment).filter(Boolean);
+  // 1. Calcular el coreFolderId destino de cada archivo
+  const targets = items.map(({ file, relativePath }) => {
+    const dirSeg  = relativePath.split("/").slice(0, -1).map(slugSegment).filter(Boolean);
     const subPath = dirSeg.join("/");
-    const coreFolderId = subPath ? `${baseFolderId}/${subPath}` : baseFolderId;
+    return { file, subPath, coreFolderId: subPath ? `${baseFolderId}/${subPath}` : baseFolderId };
+  });
 
-    if (subPath && !ensured.has(subPath)) {
-      ensured.add(subPath);
-      await ensureFolder(subPath, blikonId, baseFolderId, phoneNumber).catch(() => {});
-    }
-    await uploadFile(coreFolderId, file, () => {}, blikonId, phoneNumber);
-    done++;
-    onProgress(done, items.length, file.name);
+  // 2. Asegurar los subfolders únicos PRIMERO (secuencial, evita crear el mismo
+  //    folder concurrentemente → duplicados / PK violation). Orden por profundidad
+  //    para que los padres existan antes que los hijos.
+  const uniqueSubs = [...new Set(targets.map((t) => t.subPath).filter(Boolean))]
+    .sort((a, b) => a.split("/").length - b.split("/").length);
+  for (const sub of uniqueSubs) {
+    await ensureFolder(sub, blikonId, baseFolderId, phoneNumber).catch(() => {});
   }
+
+  // 3. Subir archivos en paralelo
+  let done = 0;
+  await runPool(targets, concurrency, async (t) => {
+    await uploadFile(t.coreFolderId, t.file, () => {}, blikonId, phoneNumber).catch(() => {});
+    done++;
+    onProgress(done, targets.length, t.file.name);
+  });
 }
 
 export async function uploadFile(
