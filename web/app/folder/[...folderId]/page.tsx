@@ -1,14 +1,16 @@
-"use client";
+import { requireSession } from "@/lib/auth";
+import { DriveApp } from "../../DriveApp";
 
-import { useParams } from "next/navigation";
-import { FolderClient } from "./FolderClient";
-import { useSession } from "../SessionContext";
+// Compat de enlaces directos /folder/{path}: renderiza el DriveApp con ese
+// folder como inicial. La navegación interna ya no cambia la URL.
+export default async function FolderPage({
+  params,
+}: {
+  params: Promise<{ folderId: string[] }>;
+}) {
+  const { folderId } = await params;
+  const decodedId = folderId.map(decodeURIComponent).join("/");
+  const session = await requireSession();
 
-export default function FolderPage() {
-  const session = useSession();
-  const params  = useParams<{ folderId: string[] }>();
-  const segments = Array.isArray(params.folderId) ? params.folderId : [params.folderId];
-  const folderId = segments.map(decodeURIComponent).join("/");
-
-  return <FolderClient folderId={folderId} userInfo={session} />;
+  return <DriveApp session={session} initialFolderId={decodedId} />;
 }

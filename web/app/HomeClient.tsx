@@ -1,16 +1,15 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { FolderOpen, Plus, X, AlertCircle, Trash2, CheckSquare, CheckCircle2, Share2, Users } from "lucide-react";
 import { DriveHeader } from "@/components/DriveHeader";
 import { ShareDialog } from "@/components/ShareDialog";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { AddressBar } from "@/components/AddressBar";
+import { useNav } from "@/app/NavContext";
 import { folderSubdomainUrl } from "@/lib/utils";
 import {
-  ensureFolder, deleteFolder, batchDeleteFolders,
+  ensureFolder, deleteFolder, batchDeleteFolders, getFolderChildren,
   getSharedWithMe, DriveFolder, SharedFolder,
 } from "@/lib/api";
 
@@ -44,8 +43,8 @@ export function HomeClient({
   folders: DriveFolder[];
   userInfo: UserInfo;
 }) {
-  const router = useRouter();
   const confirm = useConfirm();
+  const { openFolder } = useNav();
   const [folders, setFolders] = useState(initial);
   const [view, setView]       = useState<"grid" | "list">("grid");
   const [creating, setCreating] = useState(false);
@@ -56,6 +55,13 @@ export function HomeClient({
   const [deleting, setDeleting] = useState(false);
   const [shared, setShared]   = useState<SharedFolder[]>([]);
   const [shareTarget, setShareTarget] = useState<DriveFolder | null>(null);
+
+  // Refrescar folders raíz client-side (frescos al volver de una carpeta)
+  useEffect(() => {
+    getFolderChildren(undefined, userInfo.blikonId, userInfo.phoneNumber)
+      .then(setFolders)
+      .catch(() => {});
+  }, [userInfo.blikonId, userInfo.phoneNumber]);
 
   // Cargar folders compartidos conmigo (por mi teléfono)
   useEffect(() => {
@@ -82,7 +88,7 @@ export function HomeClient({
       setFolders((prev) => prev.some((f) => f.id === folder.id) ? prev : [folder, ...prev]);
       setCreating(false);
       setInput("");
-      router.push(`/folder/${name}`);
+      openFolder(name);   // entrar al folder recién creado (sin cambiar URL)
     } catch {
       setError("No se pudo crear el folder");
     } finally {
@@ -284,12 +290,13 @@ export function HomeClient({
               : "flex flex-col gap-1"
             }>
               {shared.map((sf) => (
-                <Link
+                <div
                   key={sf.shareId}
-                  href={`/folder/${sf.id}`}
+                  role="button"
+                  onClick={() => openFolder(sf.id)}
                   className={view === "grid"
-                    ? "flex flex-col rounded-xl border border-[#dadce0] bg-white hover:shadow-md transition-all overflow-hidden"
-                    : "flex items-center gap-3 px-4 py-2.5 rounded-xl hover:bg-white transition-colors"
+                    ? "flex flex-col rounded-xl border border-[#dadce0] bg-white hover:shadow-md transition-all overflow-hidden cursor-pointer"
+                    : "flex items-center gap-3 px-4 py-2.5 rounded-xl hover:bg-white transition-colors cursor-pointer"
                   }
                 >
                   {view === "grid" ? (
@@ -319,7 +326,7 @@ export function HomeClient({
                       </div>
                     </>
                   )}
-                </Link>
+                </div>
               ))}
             </div>
           </section>
@@ -362,6 +369,7 @@ function RootFolderItem({
   const [deleting, setDeleting] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const confirm = useConfirm();
+  const { openFolder } = useNav();
 
   const showCheckbox = selected || hovered;
 
@@ -384,7 +392,9 @@ function RootFolderItem({
     if (e.ctrlKey || e.metaKey) {
       e.preventDefault();
       onToggleSelect(folder.id);
+      return;
     }
+    openFolder(folder.id);   // navegación interna (sin cambiar la URL)
   }
 
   function handleCheckbox(e: React.MouseEvent) {
@@ -458,10 +468,10 @@ function RootFolderItem({
         onMouseLeave={() => setHovered(false)}
         onContextMenu={handleContextMenu}
       >
-        <Link
-          href={`/folder/${folder.id}`}
+        <div
+          role="button"
           onClick={handleClick}
-          className={`flex items-center gap-3 px-4 py-2.5 rounded-xl transition-colors
+          className={`flex items-center gap-3 px-4 py-2.5 rounded-xl transition-colors cursor-pointer
             ${selected ? "bg-[#e8f0fe]" : "hover:bg-white"}`}
         >
           {checkbox}
@@ -470,7 +480,7 @@ function RootFolderItem({
             <p className="text-sm text-[#202124] truncate">{folder.name || folder.id}</p>
             <p className="text-xs text-[#9aa0a6] font-mono truncate">{url}</p>
           </div>
-        </Link>
+        </div>
         {contextMenu}
       </div>
     );
@@ -483,10 +493,10 @@ function RootFolderItem({
       onMouseLeave={() => setHovered(false)}
       onContextMenu={handleContextMenu}
     >
-      <Link
-        href={`/folder/${folder.id}`}
+      <div
+        role="button"
         onClick={handleClick}
-        className={`flex flex-col rounded-xl border bg-white hover:shadow-md transition-all overflow-hidden
+        className={`flex flex-col rounded-xl border bg-white hover:shadow-md transition-all overflow-hidden cursor-pointer
           ${selected ? "border-[#1a73e8] shadow-md" : "border-[#dadce0]"}`}
       >
         {/* Thumbnail folder */}
@@ -501,7 +511,7 @@ function RootFolderItem({
           <p className="text-sm font-medium text-[#202124] truncate">{folder.name || folder.id}</p>
           <p className="text-xs text-[#9aa0a6] font-mono truncate">{url}</p>
         </div>
-      </Link>
+      </div>
       {contextMenu}
     </div>
   );

@@ -1,10 +1,10 @@
 "use client";
 
 import { useState, useEffect, useRef } from "react";
-import Link from "next/link";
 import { Folder, MoreVertical, Trash2, CheckCircle2 } from "lucide-react";
 import { DriveFolder, deleteFolder } from "@/lib/api";
 import { useConfirm } from "./ConfirmDialog";
+import { useNav } from "@/app/NavContext";
 
 export function FolderCard({
   folder,
@@ -31,6 +31,7 @@ export function FolderCard({
   const [deleting, setDeleting]   = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
   const confirm = useConfirm();
+  const { openFolder } = useNav();
 
   const showCheckbox = selected || hovered;
 
@@ -66,7 +67,9 @@ export function FolderCard({
     if (e.ctrlKey || e.metaKey) {
       e.preventDefault();
       onSelect?.(folder.id);
+      return;
     }
+    openFolder(folder.id);   // navegación interna (sin cambiar la URL)
   }
 
   function handleCheckbox(e: React.MouseEvent) {
@@ -126,7 +129,7 @@ export function FolderCard({
         onMouseLeave={() => setHovered(false)}
         onContextMenu={handleContextMenu}
       >
-        <Link href={`/folder/${folder.id}`} onClick={handleClick}>
+        <div onClick={handleClick} role="button">
           <div className="flex items-center gap-3 px-4 py-2 cursor-pointer">
             {/* Checkbox */}
             <div
@@ -146,7 +149,7 @@ export function FolderCard({
             <p className="w-24 text-sm text-[#444746] text-right shrink-0">—</p>
             <div className="w-8 shrink-0" />
           </div>
-        </Link>
+        </div>
         {contextMenu}
       </div>
     );
@@ -159,7 +162,7 @@ export function FolderCard({
       onMouseLeave={() => setHovered(false)}
       onContextMenu={handleContextMenu}
     >
-      <Link href={`/folder/${folder.id}`} onClick={handleClick}>
+      <div onClick={handleClick} role="button">
         <div className={`border rounded-xl overflow-hidden cursor-pointer transition-all
           ${selected
             ? "border-[#1a73e8] bg-[#e8f0fe] shadow-md"
@@ -199,7 +202,7 @@ export function FolderCard({
             </div>
           </div>
         </div>
-      </Link>
+      </div>
 
       {/* Menú ⋮ — solo con permiso de escritura */}
       {canWrite && (hovered || menuOpen) && (

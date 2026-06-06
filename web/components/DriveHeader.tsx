@@ -2,11 +2,11 @@
 
 import { useState, useRef, useEffect } from "react";
 import { useRouter } from "next/navigation";
-import Link from "next/link";
 import { Search, X, LayoutGrid, List, Plus, Upload, LogOut, FolderPlus, FileUp, FolderUp, HardDrive } from "lucide-react";
 import { BlikonDriveLogo } from "./BlikonDriveLogo";
 import { uploadFolderFiles, getStorageUsage, StorageUsage } from "@/lib/api";
 import { formatBytes } from "@/lib/utils";
+import { useNav } from "@/app/NavContext";
 
 interface UserInfo {
   profileName: string;
@@ -35,6 +35,7 @@ export function DriveHeader({
   canUpload?:    boolean;
 }) {
   const router = useRouter();
+  const { openFolder } = useNav();
   const inputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -128,12 +129,12 @@ export function DriveHeader({
       />
 
       {/* Logo — el texto se oculta en mobile para no desfasar el header */}
-      <Link href="/" className="flex items-center gap-2 shrink-0 sm:mr-1">
+      <button onClick={() => openFolder(null)} className="flex items-center gap-2 shrink-0 sm:mr-1" title="Mi Drive">
         <BlikonDriveLogo size={32} />
         <span className="hidden md:inline text-xl text-[#444746] font-normal tracking-tight">
           Blikon <span className="font-medium text-[#202124]">Drive</span>
         </span>
-      </Link>
+      </button>
 
       {/* Search */}
       <form

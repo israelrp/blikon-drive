@@ -1,9 +1,9 @@
 "use client";
 
-import Link from "next/link";
 import { useState } from "react";
 import { Globe, Copy, Check, Lock } from "lucide-react";
 import { folderSubdomainUrl } from "@/lib/utils";
+import { useNav } from "@/app/NavContext";
 
 interface Crumb { id: string; name: string; }
 
@@ -21,6 +21,7 @@ export function AddressBar({
   isShared?: boolean;
   canWrite?: boolean;
 }) {
+  const { openFolder } = useNav();
   const [copied, setCopied] = useState(false);
   const currentId = breadcrumb.length ? breadcrumb[breadcrumb.length - 1].id : "";
   const fullUrl   = folderSubdomainUrl(cronoCode, currentId);
@@ -45,7 +46,7 @@ export function AddressBar({
         {/* Dirección — scroll horizontal si es muy larga */}
         <div className="flex-1 min-w-0 overflow-x-auto flex items-center text-sm font-mono whitespace-nowrap [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
           <span className="text-[#9aa0a6]">drive-</span>
-          <Link href="/" className="text-[#1a73e8] hover:underline" title="Mi Drive">{cronoCode}</Link>
+          <button onClick={() => openFolder(null)} className="text-[#1a73e8] hover:underline" title="Mi Drive">{cronoCode}</button>
           {breadcrumb.map((c, i) => {
             const isCurrent = i === breadcrumb.length - 1;
             return (
@@ -54,7 +55,7 @@ export function AddressBar({
                 {isCurrent ? (
                   <span className="text-[#202124] font-semibold">{c.name}</span>
                 ) : (
-                  <Link href={`/folder/${c.id}`} className="text-[#444746] hover:text-[#1a73e8] hover:underline">{c.name}</Link>
+                  <button onClick={() => openFolder(c.id)} className="text-[#444746] hover:text-[#1a73e8] hover:underline">{c.name}</button>
                 )}
               </span>
             );
