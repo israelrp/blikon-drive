@@ -87,12 +87,9 @@ public class AuthController : ControllerBase
 
     private async Task<ValidacelProfile?> CallUsers(string access_token)
     {
-        using var req = new HttpRequestMessage(HttpMethod.Get, $"{ValidacelBase}/users");
-        req.Headers.Add("Authorization", "Bearer " + access_token);        
-
+        using var req = new HttpRequestMessage(HttpMethod.Get, $"{ValidacelBase}/cookies/get_user");             
         var res = await _http.SendAsync(req);
         if (!res.IsSuccessStatusCode) return null;
-
         var body = await res.Content.ReadFromJsonAsync<ValidacelUserResponse>();
         if (body?.Result != true || string.IsNullOrEmpty(body.BlikonId)) return null;
 
