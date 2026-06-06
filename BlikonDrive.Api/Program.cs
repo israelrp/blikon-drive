@@ -42,10 +42,23 @@ var allowedOrigins = builder.Configuration
 
 builder.Services.AddCors(opt => opt.AddDefaultPolicy(p =>
 {
-    if (allowedOrigins is { Length: > 0 })
-        p.WithOrigins(allowedOrigins).AllowAnyMethod().AllowAnyHeader();
-    else
-        p.AllowAnyOrigin().AllowAnyMethod().AllowAnyHeader(); // dev
+    // Permite cualquier subdominio .com.blog (drive-* dinámicos por folder,
+    // validacel, etc.) + los orígenes configurados explícitamente. localhost en dev.
+    p.SetIsOriginAllowed(origin =>
+        {
+            if (string.IsNullOrEmpty(origin)) return false;
+            try
+            {
+                var host = new Uri(origin).Host;
+                if (host == "com.blog" || host.EndsWith(".com.blog")) return true;
+                if (host == "localhost" || host == "127.0.0.1") return true;
+            }
+            catch { /* origin inválido */ }
+            return allowedOrigins is not null && allowedOrigins.Contains(origin);
+        })
+        .AllowAnyMethod()
+        .AllowAnyHeader()
+        .AllowCredentials();
 }));
 
 var app = builder.Build();
