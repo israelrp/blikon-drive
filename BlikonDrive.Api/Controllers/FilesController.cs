@@ -257,6 +257,136 @@ public class FilesController(DriveDbContext db, IBlobStorageService storage, Fil
         return Ok(comment);
     }
 
+    // ── Mover / Copiar ───────────────────────────────────────────────────────
+
+    /// Mueve un archivo a otro folder. Requiere escritura en origen y destino.
+    /// El archivo pasa a pertenecer al dueño del folder destino.
+    [HttpPost("{id}/move")]
+    public async Task<IActionResult> Move(Guid id, [FromBody] MoveCopyRequest req)
+    {
+        var file = await db.Files.FirstOrDefaultAsync(f => f.Id == id && f.DeletedAt == null);
+        if (file is null) return NotFound();
+
+        var src = await ResolveAccessAsync(file.CoreFolderId);
+        if (src is null || !src.CanWrite) return StatusCode(403, new { message = "Sin permiso en el origen" });
+        var dst = await ResolveAccessAsync(req.TargetFolderId);
+        if (dst is null || !dst.CanWrite) return StatusCode(403, new { message = "Sin permiso en el destino" });
+
+        var fromFolder = file.CoreFolderId;
+        file.CoreFolderId = req.TargetFolderId;
+        file.BlikonId     = dst.Owner;          // pertenece al dueño del destino
+        file.UpdatedAt    = DateTime.UtcNow;
+        await db.SaveChangesAsync();
+
+        events.Notify(new FileEvent("file.moved", req.TargetFolderId, file.Id, file.Name));
+        events.Notify(new FileEvent("file.removed", fromFolder, file.Id, file.Name));
+        return Ok(new { file.Id, file.CoreFolderId });
+    }
+
+    /// Copia un archivo a otro folder (copia el blob). Requiere lectura del
+    /// origen y escritura en el destino.
+    [HttpPost("{id}/copy")]
+    public async Task<IActionResult> Copy(Guid id, [FromBody] MoveCopyRequest req)
+    {
+        var file = await db.Files.FirstOrDefaultAsync(f => f.Id == id && f.DeletedAt == null);
+        if (file is null) return NotFound();
+
+        var src = await ResolveAccessAsync(file.CoreFolderId);
+        if (src is null) return StatusCode(403, new { message = "Sin acceso al archivo" });
+        var dst = await ResolveAccessAsync(req.TargetFolderId);
+        if (dst is null || !dst.CanWrite) return StatusCode(403, new { message = "Sin permiso en el destino" });
+
+        var newId   = Guid.NewGuid();
+        var newPath = $"{dst.Owner}/{req.TargetFolderId}/{newId}/{file.Name}";
+        await storage.CopyAsync(file.AzureBlobPath, newPath);
+
+        var copy = new DriveFile
+        {
+            Id               = newId,
+            BlikonId         = dst.Owner,
+            CoreFolderId     = req.TargetFolderId,
+            AzureBlobPath    = newPath,
+            UploadStatus     = UploadStatus.Complete,
+            Name             = file.Name,
+            Extension        = file.Extension,
+            MimeType         = file.MimeType,
+            SizeBytes        = file.SizeBytes,
+            Title            = file.Title,
+            Description      = file.Description,
+            Tags             = new List<string>(file.Tags),
+            Exif             = file.Exif,
+            ExifExtractedAt  = file.ExifExtractedAt,
+            ContentText      = file.ContentText,
+            ContentIndexedAt = file.ContentIndexedAt,
+        };
+        db.Files.Add(copy);
+        await db.SaveChangesAsync();
+
+        events.Notify(new FileEvent("file.added", req.TargetFolderId, copy.Id, copy.Name));
+        return Ok(new { copy.Id, copy.CoreFolderId });
+    }
+
+    [HttpPost("batch-move")]
+    public async Task<IActionResult> BatchMove([FromBody] BatchMoveCopyRequest req)
+    {
+        if (req.Ids.Count == 0) return BadRequest();
+        var dst = await ResolveAccessAsync(req.TargetFolderId);
+        if (dst is null || !dst.CanWrite) return StatusCode(403, new { message = "Sin permiso en el destino" });
+
+        var files = await db.Files.Where(f => req.Ids.Contains(f.Id) && f.DeletedAt == null).ToListAsync();
+        var moved = 0;
+        var cache = new Dictionary<string, bool>();
+        foreach (var f in files)
+        {
+            if (!cache.TryGetValue(f.CoreFolderId, out var canWrite))
+            {
+                var a = await ResolveAccessAsync(f.CoreFolderId);
+                canWrite = a is not null && a.CanWrite;
+                cache[f.CoreFolderId] = canWrite;
+            }
+            if (!canWrite) continue;
+            f.CoreFolderId = req.TargetFolderId;
+            f.BlikonId     = dst.Owner;
+            f.UpdatedAt    = DateTime.UtcNow;
+            moved++;
+        }
+        await db.SaveChangesAsync();
+        events.Notify(new FileEvent("file.added", req.TargetFolderId, Guid.Empty, ""));
+        return Ok(new { moved });
+    }
+
+    [HttpPost("batch-copy")]
+    public async Task<IActionResult> BatchCopy([FromBody] BatchMoveCopyRequest req)
+    {
+        if (req.Ids.Count == 0) return BadRequest();
+        var dst = await ResolveAccessAsync(req.TargetFolderId);
+        if (dst is null || !dst.CanWrite) return StatusCode(403, new { message = "Sin permiso en el destino" });
+
+        var files = await db.Files.Where(f => req.Ids.Contains(f.Id) && f.DeletedAt == null).ToListAsync();
+        var copied = 0;
+        foreach (var f in files)
+        {
+            var access = await ResolveAccessAsync(f.CoreFolderId);
+            if (access is null) continue; // sin acceso al origen
+            var newId   = Guid.NewGuid();
+            var newPath = $"{dst.Owner}/{req.TargetFolderId}/{newId}/{f.Name}";
+            await storage.CopyAsync(f.AzureBlobPath, newPath);
+            db.Files.Add(new DriveFile
+            {
+                Id = newId, BlikonId = dst.Owner, CoreFolderId = req.TargetFolderId,
+                AzureBlobPath = newPath, UploadStatus = UploadStatus.Complete,
+                Name = f.Name, Extension = f.Extension, MimeType = f.MimeType, SizeBytes = f.SizeBytes,
+                Title = f.Title, Description = f.Description, Tags = new List<string>(f.Tags),
+                Exif = f.Exif, ExifExtractedAt = f.ExifExtractedAt,
+                ContentText = f.ContentText, ContentIndexedAt = f.ContentIndexedAt,
+            });
+            copied++;
+        }
+        await db.SaveChangesAsync();
+        events.Notify(new FileEvent("file.added", req.TargetFolderId, Guid.Empty, ""));
+        return Ok(new { copied });
+    }
+
     [HttpDelete("{id}")]
     public async Task<IActionResult> Delete(Guid id)
     {
@@ -303,3 +433,5 @@ public record CommitUploadRequest(List<string> BlockIds);
 public record UpdateMetadataRequest(string? Title, string? Description, List<string>? Tags);
 public record BatchDeleteRequest(List<Guid> Ids);
 public record AddCommentRequest(string Body);
+public record MoveCopyRequest(string TargetFolderId);
+public record BatchMoveCopyRequest(List<Guid> Ids, string TargetFolderId);

@@ -7,12 +7,13 @@ import { FileTableView } from "@/components/FileTableView";
 import { FolderCard } from "@/components/FolderCard";
 import { DropZone } from "@/components/DropZone";
 import { AddressBar } from "@/components/AddressBar";
+import { MoveCopyDialog } from "@/components/MoveCopyDialog";
 import {
   getFilesByFolder, getFolderChildren, getFolderBreadcrumb, ensureFolder, getFolderAccess,
   batchDeleteFiles, batchDeleteFolders,
   DriveFile, DriveFolder,
 } from "@/lib/api";
-import { FolderOpen, Trash2, X, CheckSquare, FolderPlus, AlertCircle, Lock } from "lucide-react";
+import { FolderOpen, Trash2, X, CheckSquare, FolderPlus, AlertCircle, Lock, FolderInput, Copy } from "lucide-react";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { useNav } from "@/app/NavContext";
 
@@ -46,6 +47,7 @@ export function FolderClient({
   const [newFolderName, setNewFolderName]   = useState("");
   const [creatingError, setCreatingError]   = useState<string | null>(null);
   const [creatingBusy, setCreatingBusy]     = useState(false);
+  const [moveCopy, setMoveCopy] = useState<{ mode: "move" | "copy"; fileIds: string[] } | null>(null);
   const [view, setView]             = useState<"grid" | "list">("grid");
   const [selectedFiles, setSelectedFiles]     = useState<Set<string>>(new Set());
   const [selectedFolders, setSelectedFolders] = useState<Set<string>>(new Set());
@@ -232,6 +234,24 @@ export function FolderClient({
                   >
                     <CheckSquare size={14} /> Todos
                   </button>
+                  {selectedFiles.size > 0 && (
+                    <>
+                      <button
+                        onClick={() => setMoveCopy({ mode: "copy", fileIds: Array.from(selectedFiles) })}
+                        className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#444746] bg-white hover:bg-[#f6f8fc] rounded-full border border-[#dadce0] transition-colors"
+                      >
+                        <Copy size={14} /> Copiar
+                      </button>
+                      {canWrite && (
+                        <button
+                          onClick={() => setMoveCopy({ mode: "move", fileIds: Array.from(selectedFiles) })}
+                          className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-[#444746] bg-white hover:bg-[#f6f8fc] rounded-full border border-[#dadce0] transition-colors"
+                        >
+                          <FolderInput size={14} /> Mover
+                        </button>
+                      )}
+                    </>
+                  )}
                   {canWrite && (
                     <button
                       onClick={handleBatchDelete}
@@ -331,6 +351,7 @@ export function FolderClient({
                             selected={selectedFiles.has(f.id)}
                             onSelect={handleSelectFile}
                             onDeleted={refresh}
+                            onMoveCopy={(id, mode) => setMoveCopy({ mode, fileIds: [id] })}
                             canWrite={canWrite}
                             blikonId={userInfo?.blikonId}
                             phoneNumber={userInfo?.phoneNumber}
@@ -343,6 +364,7 @@ export function FolderClient({
                         selected={selectedFiles}
                         onSelect={handleSelectFile}
                         onDeleted={refresh}
+                        onMoveCopy={(id, mode) => setMoveCopy({ mode, fileIds: [id] })}
                         canWrite={canWrite}
                         blikonId={userInfo?.blikonId}
                         phoneNumber={userInfo?.phoneNumber}
@@ -355,6 +377,19 @@ export function FolderClient({
           </main>
         </DropZone>
       </div>
+
+      {/* Mover / Copiar archivos a otra carpeta */}
+      {moveCopy && (
+        <MoveCopyDialog
+          mode={moveCopy.mode}
+          fileIds={moveCopy.fileIds}
+          sourceFolderId={folderId}
+          blikonId={userInfo?.blikonId}
+          phoneNumber={userInfo?.phoneNumber}
+          onClose={() => setMoveCopy(null)}
+          onDone={() => { setMoveCopy(null); clearSelection(); refresh(); }}
+        />
+      )}
 
       {/* Modal — Nueva carpeta dentro de este folder */}
       {creatingFolder && (

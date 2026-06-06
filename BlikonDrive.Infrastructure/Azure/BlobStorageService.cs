@@ -48,6 +48,15 @@ public class BlobStorageService : IBlobStorageService
         await blob.DeleteIfExistsAsync(DeleteSnapshotsOption.IncludeSnapshots, cancellationToken: ct);
     }
 
+    // Copia server-side dentro del mismo contenedor (para "copiar archivo").
+    public async Task CopyAsync(string sourcePath, string destPath, CancellationToken ct = default)
+    {
+        var dest      = GetBlobClient(destPath);
+        var sourceUri = GetDownloadUri(sourcePath, TimeSpan.FromMinutes(10)); // SAS de lectura
+        var op = await dest.StartCopyFromUriAsync(sourceUri, cancellationToken: ct);
+        await op.WaitForCompletionAsync(ct);
+    }
+
     public Uri GetDownloadUri(string blobPath, TimeSpan expiry, string? contentType = null, bool inline = false, string? fileName = null)
     {
         var blob = GetBlobClient(blobPath);

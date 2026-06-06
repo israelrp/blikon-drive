@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { MoreVertical, Download, Trash2, Info, CheckCircle2 } from "lucide-react";
+import { MoreVertical, Download, Trash2, Info, CheckCircle2, Copy, FolderInput } from "lucide-react";
 import { DriveFile, getDownloadUrl, deleteFile } from "@/lib/api";
 import { FileTypeIcon } from "./FileTypeIcon";
 import { formatBytes } from "@/lib/utils";
@@ -13,6 +13,7 @@ export function FileGridItem({
   selected,
   onSelect,
   onDeleted,
+  onMoveCopy,
   canWrite = true,
   blikonId,
   phoneNumber,
@@ -21,6 +22,7 @@ export function FileGridItem({
   selected: boolean;
   onSelect: (id: string) => void;
   onDeleted: () => void;
+  onMoveCopy?: (fileId: string, mode: "move" | "copy") => void;
   canWrite?: boolean;
   blikonId?: string;
   phoneNumber?: string;
@@ -129,8 +131,18 @@ export function FileGridItem({
                   <button onClick={(e) => { e.preventDefault(); setMenuOpen(false); openFile(file.id); }} className="flex items-center gap-3 w-full px-4 py-2 text-sm text-[#202124] hover:bg-gray-100">
                     <Info size={16} className="text-[#444746]" /> Ver detalles
                   </button>
+                  {onMoveCopy && (
+                    <button onClick={(e) => { e.preventDefault(); setMenuOpen(false); onMoveCopy(file.id, "copy"); }} className="flex items-center gap-3 w-full px-4 py-2 text-sm text-[#202124] hover:bg-gray-100">
+                      <Copy size={16} className="text-[#444746]" /> Copiar a…
+                    </button>
+                  )}
                   {canWrite && (
                     <>
+                      {onMoveCopy && (
+                        <button onClick={(e) => { e.preventDefault(); setMenuOpen(false); onMoveCopy(file.id, "move"); }} className="flex items-center gap-3 w-full px-4 py-2 text-sm text-[#202124] hover:bg-gray-100">
+                          <FolderInput size={16} className="text-[#444746]" /> Mover a…
+                        </button>
+                      )}
                       <div className="border-t border-[#dadce0] my-1" />
                       <button onClick={handleDelete} className="flex items-center gap-3 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50">
                         <Trash2 size={16} /> Eliminar

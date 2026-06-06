@@ -109,6 +109,42 @@ export async function deleteFile(id: string, blikonId?: string, phoneNumber?: st
   await fetch(`${API}/api/files/${id}`, { method: "DELETE", headers: authHeaders(blikonId, phoneNumber) });
 }
 
+export async function moveFile(id: string, targetFolderId: string, blikonId?: string, phoneNumber?: string) {
+  const res = await fetch(`${API}/api/files/${id}/move`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders(blikonId, phoneNumber) },
+    body: JSON.stringify({ targetFolderId }),
+  });
+  if (!res.ok) throw new Error("No se pudo mover el archivo");
+}
+
+export async function copyFile(id: string, targetFolderId: string, blikonId?: string, phoneNumber?: string) {
+  const res = await fetch(`${API}/api/files/${id}/copy`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders(blikonId, phoneNumber) },
+    body: JSON.stringify({ targetFolderId }),
+  });
+  if (!res.ok) throw new Error("No se pudo copiar el archivo");
+}
+
+export async function batchMoveFiles(ids: string[], targetFolderId: string, blikonId?: string, phoneNumber?: string) {
+  const res = await fetch(`${API}/api/files/batch-move`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders(blikonId, phoneNumber) },
+    body: JSON.stringify({ ids, targetFolderId }),
+  });
+  if (!res.ok) throw new Error("No se pudieron mover los archivos");
+}
+
+export async function batchCopyFiles(ids: string[], targetFolderId: string, blikonId?: string, phoneNumber?: string) {
+  const res = await fetch(`${API}/api/files/batch-copy`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json", ...authHeaders(blikonId, phoneNumber) },
+    body: JSON.stringify({ ids, targetFolderId }),
+  });
+  if (!res.ok) throw new Error("No se pudieron copiar los archivos");
+}
+
 export async function batchDeleteFiles(ids: string[], blikonId?: string, phoneNumber?: string): Promise<number> {
   const res = await fetch(`${API}/api/files/batch-delete`, {
     method: "POST",

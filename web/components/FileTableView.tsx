@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
-import { MoreVertical, Download, Trash2, Info } from "lucide-react";
+import { MoreVertical, Download, Trash2, Info, Copy, FolderInput } from "lucide-react";
 import { DriveFile, updateMetadata, getDownloadUrl, deleteFile } from "@/lib/api";
 import { FileTypeIcon } from "./FileTypeIcon";
 import { formatBytes } from "@/lib/utils";
@@ -95,6 +95,7 @@ export function FileTableView({
   selected,
   onSelect,
   onDeleted,
+  onMoveCopy,
   canWrite = true,
   blikonId,
   phoneNumber,
@@ -103,6 +104,7 @@ export function FileTableView({
   selected: Set<string>;
   onSelect: (id: string) => void;
   onDeleted: () => void;
+  onMoveCopy?: (fileId: string, mode: "move" | "copy") => void;
   canWrite?: boolean;
   blikonId?: string;
   phoneNumber?: string;
@@ -315,6 +317,22 @@ export function FileTableView({
                     >
                       <Info size={15} className="text-[#444746]" /> Ver detalles
                     </button>
+                    {onMoveCopy && (
+                      <button
+                        className="flex items-center gap-3 w-full px-4 py-2 text-sm text-[#202124] hover:bg-gray-100"
+                        onClick={() => { setMenuOpen(null); onMoveCopy(file.id, "copy"); }}
+                      >
+                        <Copy size={15} className="text-[#444746]" /> Copiar a…
+                      </button>
+                    )}
+                    {canWrite && onMoveCopy && (
+                      <button
+                        className="flex items-center gap-3 w-full px-4 py-2 text-sm text-[#202124] hover:bg-gray-100"
+                        onClick={() => { setMenuOpen(null); onMoveCopy(file.id, "move"); }}
+                      >
+                        <FolderInput size={15} className="text-[#444746]" /> Mover a…
+                      </button>
+                    )}
                     {canWrite && (
                       <>
                         <div className="border-t border-[#dadce0] my-1" />
