@@ -23,12 +23,19 @@ public class AuthController : ControllerBase
     private const string Origin        = "https://validacel.com.blog";
     private const string TokenBearer ="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhcGlfdXNlciIsInJvbGVzIjpbImFwaV91c2VyIl0sImV4cCI6MTgxMDE1MzM4M30.S88OSb2LDQMdtdoc2LS-eg0bnka7na76rK5hSyBVD_c";
 
+    // Cookies del usuario que llegan en el request (access_token/refresh_token).
+    // Las reenviamos a ValidaCel para que identifique al usuario correcto.
+    private string? UserCookies =>
+        Request.Headers.TryGetValue("Cookie", out var c) ? c.ToString() : null;
+
     [HttpPost("check")]
     public async Task<IActionResult> Check([FromBody] SessionCheckRequest req)
     {
+        var cookies = UserCookies;
         ValidacelProfile? profile = null;
-        using var reqCheckCookies = new HttpRequestMessage(HttpMethod.Post, $"{ValidacelBase}/cookies/check_cookies");        
+        using var reqCheckCookies = new HttpRequestMessage(HttpMethod.Post, $"{ValidacelBase}/cookies/check_cookies");
         reqCheckCookies.Headers.Add("Authorization", $"Bearer {TokenBearer}");
+        if (!string.IsNullOrEmpty(cookies)) reqCheckCookies.Headers.Add("Cookie", cookies);
         var res = await _http.SendAsync(reqCheckCookies);
         if (!res.IsSuccessStatusCode) return Unauthorized(new { result = false, message = "Sesión inválida o expirada" });;
         var body = await res.Content.ReadFromJsonAsync<CheckCookiesResponse>();
@@ -63,8 +70,9 @@ public class AuthController : ControllerBase
     
     private async Task<string?> RefreshToken()
     {
-        using var req = new HttpRequestMessage(HttpMethod.Post, $"{ValidacelBase}/cookies/refresh_access_token");  
-        req.Headers.Add("Authorization", $"Bearer {TokenBearer}");              
+        using var req = new HttpRequestMessage(HttpMethod.Post, $"{ValidacelBase}/cookies/refresh_access_token");
+        req.Headers.Add("Authorization", $"Bearer {TokenBearer}");
+        if (!string.IsNullOrEmpty(UserCookies)) req.Headers.Add("Cookie", UserCookies);
         var res = await _http.SendAsync(req);
         if (!res.IsSuccessStatusCode) return null;
 
@@ -77,10 +85,27 @@ public class AuthController : ControllerBase
         return null;
     }
 
-    private async Task<ValidacelProfile?> CallUsers(string access_token)
+    // Reemplaza (o agrega) el valor de una cookie dentro del header Cookie.
+    private static string SetCookie(string? cookieHeader, string name, string? value)
     {
-        using var req = new HttpRequestMessage(HttpMethod.Get, $"{ValidacelBase}/cookies/get_user");  
-        req.Headers.Add("Authorization", $"Bearer {TokenBearer}");           
+        var parts = (cookieHeader ?? "")
+            .Split(';', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Where(p => !p.StartsWith(name + "="))
+            .ToList();
+        if (!string.IsNullOrEmpty(value)) parts.Add($"{name}={value}");
+        return string.Join("; ", parts);
+    }
+
+    private async Task<ValidacelProfile?> CallUsers(string? access_token)
+    {
+        using var req = new HttpRequestMessage(HttpMethod.Get, $"{ValidacelBase}/cookies/get_user");
+        req.Headers.Add("Authorization", $"Bearer {TokenBearer}");
+        // Reenviar cookies del usuario; si nos dieron un access_token nuevo (tras
+        // refresh) lo usamos en lugar del que venía en el request.
+        var cookies = string.IsNullOrEmpty(access_token)
+            ? UserCookies
+            : SetCookie(UserCookies, "access_token", access_token);
+        if (!string.IsNullOrEmpty(cookies)) req.Headers.Add("Cookie", cookies);
         var res = await _http.SendAsync(req);
         if (!res.IsSuccessStatusCode) return null;
         var body = await res.Content.ReadFromJsonAsync<ValidacelUserResponse>();
