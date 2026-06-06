@@ -7,6 +7,20 @@ export function folderSubdomainUrl(cronoCode: string, folderId: string): string 
     : `https://drive-${cronoCode}.com.blog`;
 }
 
+// Inverso de folderSubdomainUrl: del host del subdominio extrae el folderId.
+// drive-{crono}-{f1}-{f2}.com.blog → "f1/f2"  (descarta el cronoCode).
+// Devuelve null si no es un subdominio de folder (p. ej. drive.com.blog).
+export function folderIdFromHost(host: string | null | undefined): string | null {
+  if (!host) return null;
+  // Quitar puerto si lo hubiera y normalizar.
+  const clean = host.split(":")[0].toLowerCase();
+  const m = clean.match(/^drive-(.+)\.com\.blog$/);
+  if (!m) return null;
+  const segs = m[1].split("-").filter(Boolean);
+  const folderSegs = segs.slice(1); // saltar cronoCode
+  return folderSegs.length > 0 ? folderSegs.join("/") : null;
+}
+
 export function formatBytes(bytes: number | null): string {
   if (!bytes) return "—";
   if (bytes < 1024) return `${bytes} B`;

@@ -7,29 +7,24 @@ const DEV_COOKIE   = "blikon_dev_session";
 // El middleware corre en Edge. NO hace llamadas de red (API_URL no es fiable
 // aquí) — solo verifica PRESENCIA de la cookie de sesión. La validación real
 // del token la hace getSession() server-side (Node, donde API_URL sí funciona).
+//
+// La entrada por subdominio drive-{crono}-{path}.com.blog se resuelve en el
+// server component raíz (app/page.tsx) con headers(), NO aquí: en Netlify el
+// `host` del Edge no siempre es el público.
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  const host         = request.headers.get("host") ?? "";
+  // Detrás del proxy de Netlify el host público está en x-forwarded-host.
+  const host = request.headers.get("x-forwarded-host")
+            ?? request.headers.get("host")
+            ?? "";
 
-  // ── Recursos estáticos y rutas API → sin auth ni reescritura ────────────────
+  // ── Recursos estáticos y rutas API → sin auth ──────────────────────────────
   if (
     PUBLIC_PATHS.some((p) => pathname.startsWith(p)) ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/api")
   ) {
     return NextResponse.next();
-  }
-
-  // ── Parsear subdominio drive-{cronoCode}-{folder}-{folder}.com.blog ─────────
-  // Los nombres de folder no tienen guiones, así que el guión separa: el primer
-  // segmento es el cronoCode (se ignora en el routing — el folder se resuelve por
-  // la sesión), el resto son los niveles del path. Solo reescribe en la raíz "/".
-  let rewriteTo: string | null = null;
-  const driveMatch = host.match(/^drive-(.+)\.com\.blog$/);
-  if (driveMatch && pathname === "/") {
-    const segs = driveMatch[1].split("-").filter(Boolean);
-    const folderSegs = segs.slice(1); // saltar cronoCode
-    if (folderSegs.length > 0) rewriteTo = `/folder/${folderSegs.join("/")}`;
   }
 
   // ── Dev: cookie simulada → /login ───────────────────────────────────────────
@@ -39,7 +34,7 @@ export function middleware(request: NextRequest) {
       loginUrl.searchParams.set("return", pathname);
       return NextResponse.redirect(loginUrl);
     }
-    return applyRewrite(request, rewriteTo);
+    return NextResponse.next();
   }
 
   // ── Prod: sin token (ni access ni refresh) → directo a ValidaCel ────────────
@@ -55,14 +50,7 @@ export function middleware(request: NextRequest) {
     return res;
   }
 
-  return applyRewrite(request, rewriteTo);
-}
-
-function applyRewrite(request: NextRequest, rewriteTo: string | null) {
-  if (!rewriteTo) return NextResponse.next();
-  const url = request.nextUrl.clone();
-  url.pathname = rewriteTo;
-  return NextResponse.rewrite(url);
+  return NextResponse.next();
 }
 
 export const config = {
