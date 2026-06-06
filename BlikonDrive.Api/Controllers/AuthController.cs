@@ -33,7 +33,7 @@ public class AuthController : ControllerBase
     {
         var cookies = UserCookies;
         ValidacelProfile? profile = null;
-        using var reqCheckCookies = new HttpRequestMessage(HttpMethod.Post, $"{ValidacelBase}/cookies/check_cookies");
+        using var reqCheckCookies = new HttpRequestMessage(HttpMethod.Get, $"{ValidacelBase}/cookies/check_cookies");
         reqCheckCookies.Headers.Add("Authorization", $"Bearer {TokenBearer}");
         if (!string.IsNullOrEmpty(cookies)) reqCheckCookies.Headers.Add("Cookie", cookies);
         var res = await _http.SendAsync(reqCheckCookies);
