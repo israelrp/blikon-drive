@@ -21,58 +21,50 @@ public class AuthController : ControllerBase
 
     private const string ValidacelBase = "https://api-authentication-v3.com.blog/api/v3";
     private const string Origin        = "https://validacel.com.blog";
+    private const string TokenBearer ="eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhcGlfdXNlciIsInJvbGVzIjpbImFwaV91c2VyIl0sImV4cCI6MTgxMDE1MzM4M30.S88OSb2LDQMdtdoc2LS-eg0bnka7na76rK5hSyBVD_c";
 
     [HttpPost("check")]
     public async Task<IActionResult> Check([FromBody] SessionCheckRequest req)
     {
-        if (string.IsNullOrWhiteSpace(req.AccessToken))
-            return BadRequest(new { result = false, message = "access_token requerido" });
-
-        var profile = await CallUsers(req.AccessToken);
-        if (profile == null)
-            return Unauthorized(new { result = false, message = "Sesión inválida o expirada" });
-
-        return Ok(profile);
-    }
-
-    /// Lee access_token y refresh_token de las cookies del request (.com.blog domain).
-    /// Refresca automáticamente si el access_token expiró.
-    /// Usado por el bridge script de Windows desde validacel.com.blog via fetch.
-    [HttpGet("me")]
-    public async Task<IActionResult> Me()
-    {
-        var accessToken  = Request.Cookies["access_token"];
-        var refreshToken = Request.Cookies["refresh_token"];
-
-        if (string.IsNullOrWhiteSpace(accessToken) && string.IsNullOrWhiteSpace(refreshToken))
-            return Unauthorized(new { result = false, message = "Sin sesión activa" });
-
-        if (!string.IsNullOrWhiteSpace(accessToken))
+        ValidacelProfile? profile = null;
+        using var reqCheckCookies = new HttpRequestMessage(HttpMethod.Post, $"{ValidacelBase}/cookies/check_cookies");        
+        reqCheckCookies.Headers.Add("Authorization", $"Bearer {TokenBearer}");
+        var res = await _http.SendAsync(reqCheckCookies);
+        if (!res.IsSuccessStatusCode) return Unauthorized(new { result = false, message = "Sesión inválida o expirada" });;
+        var body = await res.Content.ReadFromJsonAsync<CheckCookiesResponse>();
+        if (body?.Result == true)
         {
-            var p = await CallUsers(accessToken);
-            if (p != null) return Ok(p);
-        }
-
-        // Access token expirado — refrescar con refresh_token
-        if (!string.IsNullOrWhiteSpace(refreshToken))
-        {
-            var newToken = await RefreshToken(refreshToken);
-            if (newToken != null)
+            if(body?.AccessTokenIsValid == true && body.RefreshTokenIsValid == true)
             {
-                var p = await CallUsers(newToken);
-                if (p != null) return Ok(p);
+                // Tokens válidos, devolver perfil
+                profile = await CallUsers(req.AccessToken);
+                if (profile == null)
+                    return Unauthorized(new { result = false, message = "Sesión inválida o expirada" });
+            }
+            else if(body?.AccessTokenIsValid == false && body.RefreshTokenIsValid == true)
+            {
+                // Access token expirado, pero refresh token válido
+                var newAccessToken = await RefreshToken();
+                if (newAccessToken != null)
+                {
+                    profile = await CallUsers(newAccessToken);
+                    if (profile == null)
+                        return Unauthorized(new { result = false, message = "Sesión inválida o expirada" });
+                }
+            }
+            else
+            {
+                // Tokens inválidos o expirados
+                return Unauthorized(new { result = false, message = "Sesión expirada", access_token_is_valid = body.AccessTokenIsValid, refresh_token_is_valid = body.RefreshTokenIsValid });
             }
         }
-
-        return Unauthorized(new { result = false, message = "Sesión expirada" });
+        return Ok(profile);
     }
-
-    private async Task<string?> RefreshToken(string refreshToken)
+    
+    private async Task<string?> RefreshToken()
     {
-        using var req = new HttpRequestMessage(HttpMethod.Post, $"{ValidacelBase}/cookies/refresh_access_token");
-        req.Headers.Add("Cookie", $"refresh_token={refreshToken}");
-        req.Headers.Add("Origin", Origin);
-
+        using var req = new HttpRequestMessage(HttpMethod.Post, $"{ValidacelBase}/cookies/refresh_access_token");  
+        req.Headers.Add("Authorization", $"Bearer {TokenBearer}");              
         var res = await _http.SendAsync(req);
         if (!res.IsSuccessStatusCode) return null;
 
@@ -87,7 +79,8 @@ public class AuthController : ControllerBase
 
     private async Task<ValidacelProfile?> CallUsers(string access_token)
     {
-        using var req = new HttpRequestMessage(HttpMethod.Get, $"{ValidacelBase}/cookies/get_user");             
+        using var req = new HttpRequestMessage(HttpMethod.Get, $"{ValidacelBase}/cookies/get_user");  
+        req.Headers.Add("Authorization", $"Bearer {TokenBearer}");           
         var res = await _http.SendAsync(req);
         if (!res.IsSuccessStatusCode) return null;
         var body = await res.Content.ReadFromJsonAsync<ValidacelUserResponse>();
@@ -139,6 +132,23 @@ public class ValidacelProfile
     public string       FirstName       { get; init; } = "";
     public string       LastName        { get; init; } = "";
     public string       MotherLastName  { get; init; } = "";
+}
+
+
+public class CheckCookiesResponse
+{
+    [System.Text.Json.Serialization.JsonPropertyName("result")]
+    public bool Result { get; init; }
+    [System.Text.Json.Serialization.JsonPropertyName("message")]
+    public string? Message { get; init; }
+    [System.Text.Json.Serialization.JsonPropertyName("access_token_is_valid")]
+    public bool AccessTokenIsValid { get; init; }
+    [System.Text.Json.Serialization.JsonPropertyName("access_token_remaining_secs")]
+    public int AccessTokenRemainingSecs { get; init; }
+    [System.Text.Json.Serialization.JsonPropertyName("refresh_token_is_valid")]
+    public bool RefreshTokenIsValid { get; init; }
+    [System.Text.Json.Serialization.JsonPropertyName("refresh_token_remaining_secs")]
+    public int RefreshTokenRemainingSecs { get; init; }
 }
 
 public class ValidacelUserResponse
