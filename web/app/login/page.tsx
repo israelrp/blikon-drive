@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { getSession } from "@/lib/auth";
+import { getSession, validacelLoginUrl } from "@/lib/auth";
 import { BlikonDriveLogo } from "@/components/BlikonDriveLogo";
 import { LoginButtons } from "./LoginButtons";
 
@@ -8,17 +8,18 @@ export default async function LoginPage({
 }: {
   searchParams: Promise<{ return?: string }>;
 }) {
-  // Si ya hay sesión válida → redirigir de vuelta
-  const session = await getSession();
-  if (session) {
-    const { return: returnPath } = await searchParams;
-    redirect(returnPath ?? "/");
-  }
-
   const { return: returnPath } = await searchParams;
   const isDev  = process.env.NODE_ENV === "development";
-  // En prod usar NEXT_PUBLIC_APP_URL, en dev localhost:3000
   const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? "http://localhost:3000";
+
+  // Si ya hay sesión válida → de vuelta
+  const session = await getSession();
+  if (session) redirect(returnPath ?? "/");
+
+  // En prod, sin sesión → directo a ValidaCel (origin = a dónde volver tras login)
+  if (!isDev) {
+    redirect(validacelLoginUrl(`${appUrl}${returnPath ?? "/"}`));
+  }
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-[#f6f8fc]">

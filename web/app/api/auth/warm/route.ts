@@ -10,20 +10,27 @@ const IS_DEV = process.env.NODE_ENV === "development";
 export async function POST() {
   if (IS_DEV) return NextResponse.json({ ok: true });
 
-  const cookieStore = await cookies();
-  const accessToken = cookieStore.get("access_token")?.value;
-  if (!accessToken) return NextResponse.json({ ok: false }, { status: 401 });
+  const cookieStore  = await cookies();
+  const accessToken  = cookieStore.get("access_token")?.value;
+  const refreshToken = cookieStore.get("refresh_token")?.value;
+  if (!accessToken && !refreshToken) return NextResponse.json({ ok: false }, { status: 401 });
 
   try {
+    const cookieHeader = [
+      accessToken  ? `access_token=${accessToken}`   : "",
+      refreshToken ? `refresh_token=${refreshToken}` : "",
+    ].filter(Boolean).join("; ");
+
     const res = await fetch(`${API}/api/auth/check`, {
       method:  "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", Cookie: cookieHeader },
       body:    JSON.stringify({ accessToken }),
       cache:   "no-store",
     });
     if (!res.ok) return NextResponse.json({ ok: false }, { status: 401 });
 
     const profile = await res.json();
+    if (!profile || !profile.blikonId) return NextResponse.json({ ok: false }, { status: 401 });
     const response = NextResponse.json({ ok: true });
     response.cookies.set("blikon_profile", JSON.stringify(profile), {
       path:     "/",

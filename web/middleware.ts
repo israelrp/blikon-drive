@@ -28,16 +28,26 @@ export function middleware(request: NextRequest) {
     return NextResponse.next();
   }
 
-  // ── Verificar presencia de la cookie de sesión ──────────────────────────────
-  const hasSession = IS_DEV
-    ? request.cookies.get(DEV_COOKIE)?.value === "1"
-    : !!request.cookies.get("access_token")?.value;
+  // ── Dev: cookie simulada → /login ───────────────────────────────────────────
+  if (IS_DEV) {
+    if (request.cookies.get(DEV_COOKIE)?.value !== "1") {
+      const loginUrl = new URL("/login", request.url);
+      loginUrl.searchParams.set("return", pathname);
+      return NextResponse.redirect(loginUrl);
+    }
+    return NextResponse.next();
+  }
 
-  if (!hasSession) {
-    const loginUrl = new URL("/login", request.url);
-    loginUrl.searchParams.set("return", pathname);
-    const res = NextResponse.redirect(loginUrl);
-    res.cookies.set("blikon_profile", "", { path: "/", maxAge: 0 });
+  // ── Prod: sin token (ni access ni refresh) → directo a ValidaCel ────────────
+  // El destino (origin) es la URL pública actual, para volver aquí tras el login.
+  const hasToken = !!request.cookies.get("access_token")?.value
+                || !!request.cookies.get("refresh_token")?.value;
+
+  if (!hasToken) {
+    const dest      = `https://${host}${pathname}${request.nextUrl.search}`;
+    const validacel = `https://validacel.com.blog/?origin=${encodeURIComponent(dest)}`;
+    const res = NextResponse.redirect(validacel);
+    res.cookies.set("blikon_profile", "", { path: "/", maxAge: 0 }); // limpiar cache stale
     return res;
   }
 
