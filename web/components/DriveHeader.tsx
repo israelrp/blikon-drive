@@ -1,7 +1,6 @@
 "use client";
 
 import { useState, useRef, useEffect } from "react";
-import { useRouter } from "next/navigation";
 import { Search, X, LayoutGrid, List, Plus, Upload, LogOut, FolderPlus, FileUp, FolderUp, HardDrive } from "lucide-react";
 import { BlikonDriveLogo } from "./BlikonDriveLogo";
 import { uploadFolderFiles, getStorageUsage, StorageUsage } from "@/lib/api";
@@ -34,8 +33,7 @@ export function DriveHeader({
   userInfo?:     UserInfo | null;
   canUpload?:    boolean;
 }) {
-  const router = useRouter();
-  const { openFolder } = useNav();
+  const { openFolder, openSearch } = useNav();
   const inputRef = useRef<HTMLInputElement>(null);
   const folderInputRef = useRef<HTMLInputElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
@@ -57,9 +55,8 @@ export function DriveHeader({
   function handleSearch(e: React.FormEvent) {
     e.preventDefault();
     if (!q.trim()) return;
-    // Búsqueda global por nombre en todos tus archivos (no se limita al folder actual).
-    const params = new URLSearchParams({ q });
-    router.push(`/search?${params}`);
+    // Búsqueda global por nombre — overlay, no cambia la URL.
+    openSearch(q.trim());
   }
 
   async function handleFiles(files: FileList | null) {

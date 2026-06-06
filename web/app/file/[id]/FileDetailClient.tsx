@@ -7,21 +7,30 @@ import { formatBytes } from "@/lib/utils";
 import { FilePreview } from "@/components/FilePreview";
 import { useConfirm } from "@/components/ConfirmDialog";
 import { ArrowLeft, Download, Trash2, ChevronRight } from "lucide-react";
-import Link from "next/link";
 
 export function FileDetailClient({
   file,
   folderId,
   blikonId,
   phoneNumber,
+  onClose,
+  onDeleted,
 }: {
   file: FileDetail;
   folderId: string;
   blikonId?: string;
   phoneNumber?: string;
+  onClose?: () => void;     // modo overlay: cerrar en vez de routear
+  onDeleted?: () => void;   // modo overlay: tras borrar
 }) {
   const router = useRouter();
   const confirm = useConfirm();
+
+  // Volver a la carpeta: cierra el overlay (si aplica) o navega por ruta.
+  function goBack() {
+    if (onClose) onClose();
+    else router.push(`/folder/${folderId}`);
+  }
   const [title, setTitle] = useState(file.title ?? "");
   const [description, setDescription] = useState(file.description ?? "");
   const [tags, setTags] = useState(file.tags.join(", "));
@@ -59,24 +68,26 @@ export function FileDetailClient({
     });
     if (!ok) return;
     await deleteFile(file.id, blikonId, phoneNumber);
-    router.push(`/folder/${folderId}`);
+    if (onDeleted) onDeleted();
+    else router.push(`/folder/${folderId}`);
   }
 
   return (
     <div className="flex flex-col h-screen bg-[#f6f8fc]">
       {/* Header */}
       <header className="h-16 flex items-center gap-4 px-4 bg-[#f6f8fc] border-b border-[#dadce0] shrink-0">
-        <Link
-          href={`/folder/${folderId}`}
+        <button
+          onClick={goBack}
           className="w-10 h-10 rounded-full flex items-center justify-center hover:bg-[#e9eef6] transition-colors"
+          title="Volver"
         >
           <ArrowLeft size={20} className="text-[#444746]" />
-        </Link>
+        </button>
 
         <div className="flex items-center gap-2 text-sm text-[#444746] min-w-0">
           <span className="hidden sm:inline shrink-0">Mi Drive</span>
           <ChevronRight size={14} className="hidden sm:inline shrink-0" />
-          <Link href={`/folder/${folderId}`} className="hidden md:inline font-mono text-xs bg-gray-200 px-2 py-0.5 rounded shrink-0 max-w-[180px] truncate hover:bg-gray-300">{folderId}</Link>
+          <button onClick={goBack} className="hidden md:inline font-mono text-xs bg-gray-200 px-2 py-0.5 rounded shrink-0 max-w-[180px] truncate hover:bg-gray-300">{folderId}</button>
           <ChevronRight size={14} className="hidden md:inline shrink-0" />
           <span className="text-[#202124] font-medium truncate">{file.name}</span>
         </div>

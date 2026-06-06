@@ -1,12 +1,12 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { MoreVertical, Download, Trash2, Info, CheckCircle2 } from "lucide-react";
 import { DriveFile, getDownloadUrl, deleteFile } from "@/lib/api";
 import { FileTypeIcon } from "./FileTypeIcon";
 import { formatBytes } from "@/lib/utils";
 import { useConfirm } from "./ConfirmDialog";
+import { useNav } from "@/app/NavContext";
 
 export function FileGridItem({
   file,
@@ -28,6 +28,7 @@ export function FileGridItem({
   const [menuOpen, setMenuOpen] = useState(false);
   const [hovered, setHovered] = useState(false);
   const confirm = useConfirm();
+  const { openFile } = useNav();
 
   const showCheckbox = selected || hovered;
 
@@ -53,7 +54,9 @@ export function FileGridItem({
     if (e.ctrlKey || e.metaKey) {
       e.preventDefault();
       onSelect(file.id);
+      return;
     }
+    openFile(file.id);   // abre el detalle como overlay (sin cambiar URL)
   }
 
   function handleCheckbox(e: React.MouseEvent) {
@@ -68,7 +71,7 @@ export function FileGridItem({
       onMouseEnter={() => setHovered(true)}
       onMouseLeave={() => setHovered(false)}
     >
-      <Link href={`/file/${file.id}`} onClick={handleClick}>
+      <div onClick={handleClick} role="button">
         <div className={`border rounded-xl overflow-hidden transition-all cursor-pointer
           ${selected
             ? "border-[#1a73e8] bg-[#e8f0fe] shadow-md"
@@ -104,7 +107,7 @@ export function FileGridItem({
             </div>
           </div>
         </div>
-      </Link>
+      </div>
 
       {/* Menú ⋮ */}
       {(hovered || menuOpen) && (
@@ -123,9 +126,9 @@ export function FileGridItem({
                   <button onClick={handleDownload} className="flex items-center gap-3 w-full px-4 py-2 text-sm text-[#202124] hover:bg-gray-100">
                     <Download size={16} className="text-[#444746]" /> Descargar
                   </button>
-                  <Link href={`/file/${file.id}`} className="flex items-center gap-3 px-4 py-2 text-sm text-[#202124] hover:bg-gray-100">
+                  <button onClick={(e) => { e.preventDefault(); setMenuOpen(false); openFile(file.id); }} className="flex items-center gap-3 w-full px-4 py-2 text-sm text-[#202124] hover:bg-gray-100">
                     <Info size={16} className="text-[#444746]" /> Ver detalles
-                  </Link>
+                  </button>
                   {canWrite && (
                     <>
                       <div className="border-t border-[#dadce0] my-1" />

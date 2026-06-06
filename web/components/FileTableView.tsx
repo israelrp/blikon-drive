@@ -1,12 +1,12 @@
 "use client";
 
 import { useState, useRef, useCallback } from "react";
-import Link from "next/link";
 import { MoreVertical, Download, Trash2, Info } from "lucide-react";
 import { DriveFile, updateMetadata, getDownloadUrl, deleteFile } from "@/lib/api";
 import { FileTypeIcon } from "./FileTypeIcon";
 import { formatBytes } from "@/lib/utils";
 import { useConfirm } from "./ConfirmDialog";
+import { useNav } from "@/app/NavContext";
 
 type EditField = "title" | "description" | "tags";
 
@@ -111,6 +111,7 @@ export function FileTableView({
   const [editing, setEditing] = useState<{ id: string; field: EditField } | null>(null);
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
   const confirm = useConfirm();
+  const { openFile } = useNav();
 
   // Sincronizar cuando llegan nuevos archivos desde el padre
   const prevLen = useRef(initialFiles.length);
@@ -229,12 +230,12 @@ export function FileTableView({
 
             {/* Nombre — columna ancha; la tabla scrollea horizontal en mobile */}
             <div className="w-96 shrink-0 border-l border-[#f0f0f0]">
-              <Link href={`/file/${file.id}`}
-                className="block px-2 py-1.5 text-sm text-[#202124] hover:text-[#1a73e8] truncate font-medium"
+              <button onClick={() => openFile(file.id)}
+                className="block w-full text-left px-2 py-1.5 text-sm text-[#202124] hover:text-[#1a73e8] truncate font-medium"
                 title={file.name}
               >
                 {file.name}
-              </Link>
+              </button>
             </div>
 
             {/* Título editable */}
@@ -308,13 +309,12 @@ export function FileTableView({
                     >
                       <Download size={15} className="text-[#444746]" /> Descargar
                     </button>
-                    <Link
-                      href={`/file/${file.id}`}
-                      className="flex items-center gap-3 px-4 py-2 text-sm text-[#202124] hover:bg-gray-100"
-                      onClick={() => setMenuOpen(null)}
+                    <button
+                      className="flex items-center gap-3 w-full px-4 py-2 text-sm text-[#202124] hover:bg-gray-100"
+                      onClick={() => { setMenuOpen(null); openFile(file.id); }}
                     >
                       <Info size={15} className="text-[#444746]" /> Ver detalles
-                    </Link>
+                    </button>
                     {canWrite && (
                       <>
                         <div className="border-t border-[#dadce0] my-1" />
