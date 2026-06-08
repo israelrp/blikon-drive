@@ -1,11 +1,12 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { HomeClient } from "./HomeClient";
 import { FolderClient } from "./folder/[...folderId]/FolderClient";
 import { FileOverlay } from "@/components/FileOverlay";
 import { SearchOverlay } from "@/components/SearchOverlay";
 import { NavProvider } from "./NavContext";
+import { folderIdFromHost } from "@/lib/utils";
 import type { UserProfile } from "@/lib/auth";
 import type { DriveFolder } from "@/lib/api";
 
@@ -25,6 +26,18 @@ export function DriveApp({
   const [search, setSearch]     = useState<string | null>(null);
   // Bump para forzar refresco del folder tras borrar un archivo desde el overlay.
   const [refreshTick, setRefreshTick] = useState(0);
+
+  // Entrada por subdominio drive-{crono}-{path}.com.blog → folder inicial.
+  // En Netlify el host del server es siempre "drive.com.blog" (normaliza el
+  // wildcard), así que el subdominio real solo lo conoce el navegador. Lo
+  // resolvemos aquí, en el cliente, al montar.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const fromHost = folderIdFromHost(window.location.host);
+    if (fromHost && fromHost !== initialFolderId) setFolderId(fromHost);
+    // Solo al montar: la navegación posterior es por estado.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const openFolder = useCallback((id: string | null) => {
     setFolderId(id);
