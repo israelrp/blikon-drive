@@ -1,4 +1,4 @@
-import { cookies } from "next/headers";
+import { cookies, headers } from "next/headers";
 
 const API     = process.env.API_URL ?? "http://localhost:5086";
 const IS_DEV  = process.env.NODE_ENV === "development";
@@ -104,7 +104,17 @@ export async function requireSession(): Promise<UserProfile> {
   const session = await getSession();
   if (!session) {
     const { redirect } = await import("next/navigation");
-    redirect(IS_DEV ? "/login" : validacelLoginUrl(APP_URL));
+    if (IS_DEV) {
+      redirect("/login");
+    } else {
+      // El origin debe ser la URL ACTUAL (incluye el subdominio del folder
+      // drive-{crono}-{path}.com.blog), NO APP_URL fijo — si no, tras el login
+      // ValidaCel devuelve a la home del drive y se pierde la carpeta.
+      const h    = await headers();
+      const host = h.get("x-forwarded-host") ?? h.get("host");
+      const origin = host ? `https://${host}/` : APP_URL;
+      redirect(validacelLoginUrl(origin));
+    }
     throw new Error("unreachable");
   }
   return session;
